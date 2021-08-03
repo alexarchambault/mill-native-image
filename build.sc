@@ -53,6 +53,15 @@ object plugin extends ScalaModule with MillNativeImagePublishModule {
   )
 }
 
+object upload extends ScalaModule with MillNativeImagePublishModule {
+  def artifactName = s"mill-native-image-upload_mill$millBinaryVersion"
+  def scalaVersion = Scala.version
+  def ivyDeps = super.ivyDeps() ++ Agg(
+    ivy"com.lihaoyi::mill-scalalib:$millVersion",
+    ivy"com.softwaremill.sttp.client::core:2.2.9"
+  )
+}
+
 def publishSonatype(tasks: mill.main.Tasks[PublishModule.PublishData]) =
   T.command {
     import scala.concurrent.duration._
