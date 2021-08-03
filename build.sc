@@ -7,16 +7,7 @@ import mill._, scalalib._, publish._
 def millVersion = os.read(os.pwd / ".mill-version").trim
 def millBinaryVersion = millVersion.split('.').take(2).mkString(".")
 
-object plugin extends ScalaModule with PublishModule {
-  def scalaVersion = "2.13.6"
-
-  def artifactName = s"mill-native-image_mill$millBinaryVersion"
-
-  def ivyDeps = super.ivyDeps() ++ Agg(
-    ivy"com.lihaoyi::mill-scalalib:$millVersion"
-  )
-
-
+trait MillNativeImagePublishModule extends PublishModule {
   def pomSettings = PomSettings(
     description = artifactName(),
     organization = "io.github.alexarchambault.mill",
@@ -48,6 +39,14 @@ object plugin extends ScalaModule with PublishModule {
         .getOrElse(state.format())
         .stripPrefix("v")
   }
+}
+
+object plugin extends ScalaModule with MillNativeImagePublishModule {
+  def artifactName = s"mill-native-image_mill$millBinaryVersion"
+  def scalaVersion = "2.13.6"
+  def ivyDeps = super.ivyDeps() ++ Agg(
+    ivy"com.lihaoyi::mill-scalalib:$millVersion"
+  )
 }
 
 def publishSonatype(tasks: mill.main.Tasks[PublishModule.PublishData]) =
