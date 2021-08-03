@@ -41,9 +41,13 @@ trait MillNativeImagePublishModule extends PublishModule {
   }
 }
 
+object Scala {
+  def version = "2.13.6"
+}
+
 object plugin extends ScalaModule with MillNativeImagePublishModule {
   def artifactName = s"mill-native-image_mill$millBinaryVersion"
-  def scalaVersion = "2.13.6"
+  def scalaVersion = Scala.version
   def ivyDeps = super.ivyDeps() ++ Agg(
     ivy"com.lihaoyi::mill-scalalib:$millVersion"
   )
