@@ -54,10 +54,11 @@ object plugin extends ScalaModule with MillNativeImagePublishModule {
 }
 
 object upload extends ScalaModule with MillNativeImagePublishModule {
-  def artifactName = s"mill-native-image-upload_mill$millBinaryVersion"
+  def artifactName = "mill-native-image-upload"
   def scalaVersion = Scala.version
   def ivyDeps = super.ivyDeps() ++ Agg(
-    ivy"com.lihaoyi::mill-scalalib:$millVersion",
+    ivy"com.lihaoyi::os-lib:0.7.8",
+    ivy"com.lihaoyi::ujson:1.3.12",
     ivy"com.softwaremill.sttp.client::core:2.2.9"
   )
 }
