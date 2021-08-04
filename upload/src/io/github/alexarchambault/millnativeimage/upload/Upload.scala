@@ -229,6 +229,8 @@ object Upload {
           if (fos != null) fos.close()
           if (fis != null) fis.close()
         }
+
+        os.remove(dest)
         compressedDest
       } else {
         dest
