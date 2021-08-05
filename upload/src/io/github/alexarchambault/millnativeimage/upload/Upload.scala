@@ -1,10 +1,8 @@
 package io.github.alexarchambault.millnativeimage.upload
 
 import java.io._
-import java.nio.ByteBuffer
-import java.nio.charset.{MalformedInputException, StandardCharsets}
 import java.nio.file.attribute.FileTime
-import java.nio.file.{Files, Path}
+import java.nio.file.Path
 import java.util.zip.{GZIPOutputStream, ZipEntry, ZipException, ZipFile, ZipOutputStream}
 
 import sttp.client.quick._
@@ -40,17 +38,7 @@ object Upload {
       finally { if (zf != null) zf.close() }
     }
 
-    lazy val isTextFile =
-      try {
-        StandardCharsets.UTF_8
-          .newDecoder()
-          .decode(ByteBuffer.wrap(Files.readAllBytes(path)))
-        true
-      }
-      catch { case e: MalformedInputException => false }
-
     if (isZipFile) "application/zip"
-    else if (isTextFile) "text/plain"
     else "application/octet-stream"
   }
 
