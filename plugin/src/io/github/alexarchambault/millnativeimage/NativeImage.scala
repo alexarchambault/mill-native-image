@@ -1,8 +1,11 @@
 package io.github.alexarchambault.millnativeimage
 
-import mill._
-import scala.util.Properties
 import java.io.File
+import java.nio.charset.Charset
+
+import mill._
+
+import scala.util.Properties
 
 trait NativeImage extends Module {
   import NativeImage._
@@ -38,6 +41,67 @@ trait NativeImage extends Module {
     Properties.isWin && nativeImageDockerParams().isEmpty
   }
 
+  def nativeImageScript = T{
+    val cp = nativeImageClassPath().map(_.path)
+    val mainClass0 = nativeImageMainClass()
+    val dest = T.dest / nativeImageName()
+    val actualDest = T.dest / (nativeImageName() + platformExtension)
+
+    val (command, tmpDestOpt) = generateNativeImage(
+      nativeImageCsCommand(),
+      nativeImageGraalVmJvmId(),
+      cp,
+      mainClass0,
+      dest,
+      nativeImageOptions(),
+      nativeImageDockerParams(),
+      nativeImageDockerWorkingDir(),
+      nativeImageUseManifest()
+    )
+
+    val scriptName = if (Properties.isWin) "generate.bat" else "generate.sh"
+    val scriptPath = T.dest / scriptName
+
+    def bashScript = {
+      val q = "\""
+      val extra = tmpDestOpt.fold("") { tmpDest =>
+        System.lineSeparator() +
+          s"mv $q$tmpDest$q $q$actualDest$q"
+      }
+
+      s"""#!/usr/bin/env bash
+         |set -e
+         |${command.map(a => q + a.replace(q, "\\" + q) + q).mkString(" ")}
+         |""".stripMargin + extra
+    }
+
+    def batScript = {
+      val q = "\""
+      val extra = tmpDestOpt.fold("") { tmpDest =>
+        System.lineSeparator() +
+          s"mv $q$tmpDest$q $q$actualDest$q"
+      }
+
+      s"""@call ${command.map(a => q + a.replace(q, "\\" + q) + q).mkString(" ")}
+         |""".stripMargin + extra
+    }
+
+    val content = if (Properties.isWin) batScript else bashScript
+
+    os.write.over(scriptPath, content.getBytes(Charset.defaultCharset()), createFolders = true)
+
+    if (!Properties.isWin)
+      os.perms.set(scriptPath, "rwxr-xr-x")
+
+    PathRef(scriptPath)
+  }
+
+  def writeNativeImageScript(dest: String) = T.command {
+    val dest0 = os.Path(dest, os.pwd)
+    val script = nativeImageScript().path
+    os.copy(script, dest0, replaceExisting = true, createFolders = true)
+  }
+
   def nativeImage =
     if (nativeImagePersist)
       T.persistent {
@@ -48,8 +112,8 @@ trait NativeImage extends Module {
 
         if (os.isFile(actualDest))
           T.log.info(s"Warning: not re-computing ${actualDest.relativeTo(os.pwd)}, delete it if you think it's stale")
-        else
-          generateNativeImage(
+        else {
+          val (command, tmpDestOpt) = generateNativeImage(
             nativeImageCsCommand(),
             nativeImageGraalVmJvmId(),
             cp,
@@ -61,6 +125,16 @@ trait NativeImage extends Module {
             nativeImageUseManifest()
           )
 
+          val res = os.proc(command.map(x => x: os.Shellable): _*).call(
+            stdin = os.Inherit,
+            stdout = os.Inherit
+          )
+          if (res.exitCode == 0)
+            tmpDestOpt.foreach(tmpDest => os.copy(tmpDest, dest))
+          else
+            sys.error(s"native-image command exited with ${res.exitCode}")
+        }
+
         PathRef(actualDest)
       }
     else
@@ -70,7 +144,7 @@ trait NativeImage extends Module {
         val dest = T.dest / nativeImageName()
         val actualDest = T.dest / (nativeImageName() + platformExtension)
 
-        generateNativeImage(
+        val (command, tmpDestOpt) = generateNativeImage(
           nativeImageCsCommand(),
           nativeImageGraalVmJvmId(),
           cp,
@@ -81,6 +155,15 @@ trait NativeImage extends Module {
           nativeImageDockerWorkingDir(),
           nativeImageUseManifest()
         )
+
+        val res = os.proc(command.map(x => x: os.Shellable): _*).call(
+          stdin = os.Inherit,
+          stdout = os.Inherit
+        )
+        if (res.exitCode == 0)
+          tmpDestOpt.foreach(tmpDest => os.copy(tmpDest, dest))
+        else
+          sys.error(s"native-image command exited with ${res.exitCode}")
 
         PathRef(actualDest)
       }
@@ -195,7 +278,7 @@ object NativeImage {
     dockerParamsOpt: Option[DockerParams],
     dockerWorkingDir: os.Path,
     createManifest: Boolean
-  ): Unit = {
+  ): (Seq[String], Option[os.Path]) = {
 
     val graalVmHome = Option(System.getenv("GRAALVM_HOME")).getOrElse {
       import sys.process._
@@ -327,14 +410,7 @@ object NativeImage {
             (defaultCommand, None)
         }
 
-    val res = os.proc(finalCommand.map(x => x: os.Shellable): _*).call(
-      stdin = os.Inherit,
-      stdout = os.Inherit
-    )
-    if (res.exitCode == 0)
-      tmpDestOpt.foreach(tmpDest => os.copy(tmpDest, dest))
-    else
-      sys.error(s"native-image command exited with ${res.exitCode}")
+    (finalCommand, tmpDestOpt)
   }
 
 }
