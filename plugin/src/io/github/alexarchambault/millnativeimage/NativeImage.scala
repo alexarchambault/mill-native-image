@@ -56,7 +56,8 @@ trait NativeImage extends Module {
       nativeImageOptions(),
       nativeImageDockerParams(),
       nativeImageDockerWorkingDir(),
-      nativeImageUseManifest()
+      nativeImageUseManifest(),
+      T.dest / "working-dir"
     )
 
     val scriptName = if (Properties.isWin) "generate.bat" else "generate.sh"
@@ -122,7 +123,8 @@ trait NativeImage extends Module {
             nativeImageOptions(),
             nativeImageDockerParams(),
             nativeImageDockerWorkingDir(),
-            nativeImageUseManifest()
+            nativeImageUseManifest(),
+            T.dest / "working-dir"
           )
 
           val res = os.proc(command.map(x => x: os.Shellable): _*).call(
@@ -153,7 +155,8 @@ trait NativeImage extends Module {
           nativeImageOptions(),
           nativeImageDockerParams(),
           nativeImageDockerWorkingDir(),
-          nativeImageUseManifest()
+          nativeImageUseManifest(),
+          T.dest / "working-dir"
         )
 
         val res = os.proc(command.map(x => x: os.Shellable): _*).call(
@@ -277,7 +280,8 @@ object NativeImage {
     nativeImageOptions: Seq[String],
     dockerParamsOpt: Option[DockerParams],
     dockerWorkingDir: os.Path,
-    createManifest: Boolean
+    createManifest: Boolean,
+    workingDir: os.Path
   ): (Seq[String], Option[os.Path]) = {
 
     val graalVmHome = Option(System.getenv("GRAALVM_HOME")).getOrElse {
@@ -346,7 +350,8 @@ object NativeImage {
                 |if %errorlevel% neq 0 exit /b %errorlevel%
                 |@call ${escapedCommand.mkString(" ")}
                 |""".stripMargin
-            val scriptPath = os.temp(script.getBytes, prefix = "run-native-image", suffix = ".bat")
+            val scriptPath = workingDir / "run-native-image.bat"
+            os.write.over(scriptPath, script.getBytes, createFolders = true)
             (Seq(scriptPath.toString), None)
         }
       else
