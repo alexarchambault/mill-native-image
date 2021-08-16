@@ -120,6 +120,14 @@ object Upload {
 
     val currentAssets0 = if (overwrite) currentAssets(releaseId0, ghOrg, ghProj, ghToken) else Map.empty[String, Long]
 
+    val extraAssets = currentAssets0.keySet.filterNot(uploads.map(_._2).toSet).toVector.sorted
+
+    if (extraAssets.nonEmpty) {
+      System.err.println(s"Warning: found ${extraAssets.length} extra asset(s) that will not be overwritten:")
+      for (assetName <- extraAssets)
+        System.err.println(s"  $assetName")
+    }
+
     for ((f0, name) <- uploads) {
 
       currentAssets0
