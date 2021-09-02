@@ -352,7 +352,7 @@ object NativeImage {
                 |""".stripMargin
             val scriptPath = workingDir / "run-native-image.bat"
             os.write.over(scriptPath, script.getBytes, createFolders = true)
-            (Seq(scriptPath.toString), None)
+            (Seq("cmd", "/c", scriptPath.toString), None)
         }
       else
         dockerParamsOpt match {
