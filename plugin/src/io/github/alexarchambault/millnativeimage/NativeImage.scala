@@ -399,7 +399,12 @@ object NativeImage {
             os.write.over(scriptPath, script, createFolders = true)
             os.perms.set(scriptPath, "rwxr-xr-x")
             val csPath = os.Path(os.proc(csCommand, "get", params.csUrl).call().out.text.trim)
-            os.copy.over(csPath, dockerWorkingDir / "cs")
+            if (csPath.last.endsWith(".gz")) {
+              os.copy.over(csPath, dockerWorkingDir / "cs.gz")
+              os.proc("gzip", "-d", dockerWorkingDir / "cs.gz").call(stdout = os.Inherit)
+            }
+            else
+              os.copy.over(csPath, dockerWorkingDir / "cs")
             os.perms.set(dockerWorkingDir / "cs", "rwxr-xr-x")
             val termOpt = if (System.console() == null) Nil else Seq("-t")
             val dockerCmd = Seq("docker", "run") ++ termOpt ++ Seq(
