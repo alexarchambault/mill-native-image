@@ -48,8 +48,11 @@ object Upload {
     ghToken: String,
     tag: String
   ): Long = {
-    val url = uri"https://api.github.com/repos/$ghOrg/$ghProj/releases?access_token=$ghToken"
-    val resp = quickRequest.get(url).send()
+    val url = uri"https://api.github.com/repos/$ghOrg/$ghProj/releases"
+    val resp = quickRequest
+      .header("Authorization", s"token $ghToken")
+      .get(url)
+      .send()
 
     val json = ujson.read(resp.body)
     val releaseId =
@@ -141,7 +144,7 @@ object Upload {
             .send()
         }
 
-      val uri = uri"https://uploads.github.com/repos/$ghOrg/$ghProj/releases/$releaseId0/assets?name=$name&access_token=$ghToken"
+      val uri = uri"https://uploads.github.com/repos/$ghOrg/$ghProj/releases/$releaseId0/assets?name=$name"
       val contentType0 = contentType(f0)
       System.err.println(s"Detected content type of $f0: $contentType0")
       if (dryRun)
@@ -150,6 +153,7 @@ object Upload {
         System.err.println(s"Uploading $f0 as $name")
         quickRequest
           .body(f0)
+          .header("Authorization", s"token $ghToken")
           .header("Content-Type", contentType0)
           .post(uri)
           .send()
