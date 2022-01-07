@@ -317,18 +317,26 @@ object NativeImage {
       } else
         classPath.map(_.toString).mkString(File.pathSeparator)
 
-    def command(nativeImage: String, extraNativeImageArgs: Seq[String], dest: String, classPath: String) =
+    def command(nativeImage: String, extraNativeImageArgs: Seq[String], destDir: Option[String], destName: String, classPath: String) = {
+      val destDirOptions = destDir.toList.map(d => s"-H:Path=$d")
       Seq(nativeImage) ++
       extraNativeImageArgs ++
       nativeImageOptions ++
+      destDirOptions ++
       Seq(
-        s"-H:Name=$dest",
+        s"-H:Name=$destName",
         "-cp",
         classPath,
         mainClass
       )
+    }
 
-    def defaultCommand = command(nativeImage, Nil, dest.relativeTo(os.pwd).toString, finalCp)
+    def defaultCommand = {
+      val relDest = dest.relativeTo(os.pwd)
+      val destDirOpt = if (relDest.segments.length > 1) Some((relDest / os.up).toString) else None
+      val destName = relDest.last
+      command(nativeImage, Nil, destDirOpt, destName, finalCp)
+    }
 
     val (finalCommand, tmpDestOpt) =
       if (Properties.isWin)
@@ -383,7 +391,7 @@ object NativeImage {
               s"/data/cp/$name"
             }
             val cp = copiedCp.mkString(File.pathSeparator)
-            val escapedCommand = command("native-image", params.extraNativeImageArgs, "/data/output", cp).map {
+            val escapedCommand = command("native-image", params.extraNativeImageArgs, Some("/data"), "output", cp).map {
               case s if s.contains(" ") => "\"" + s + "\""
               case s => s
             }
