@@ -1,11 +1,16 @@
 import $ivy.`com.lihaoyi::mill-contrib-bloop:$MILL_VERSION`
-import $ivy.`de.tototec::de.tobiasroeser.mill.vcs.version_mill0.9:0.1.1`
+import $ivy.`de.tototec::de.tobiasroeser.mill.vcs.version::0.1.1`
 
 import de.tobiasroeser.mill.vcs.version._
 import mill._, scalalib._, publish._
 
-def millVersion = os.read(os.pwd / ".mill-version").trim
-def millBinaryVersion = millVersion.split('.').take(2).mkString(".")
+val millVersions = Seq("0.9.3", "0.10.0")
+val millBinaryVersions = millVersions.map(millBinaryVersion)
+
+def millBinaryVersion(millVersion: String) =
+  millVersion.split('.').take(2).mkString(".")
+def millVersion(binaryVersion: String) =
+  millVersions.find(v => millBinaryVersion(v) == binaryVersion).get
 
 trait MillNativeImagePublishModule extends PublishModule {
   def pomSettings = PomSettings(
@@ -45,11 +50,15 @@ object Scala {
   def version = "2.13.6"
 }
 
-object plugin extends ScalaModule with MillNativeImagePublishModule {
+object plugin extends Cross[PluginModule](millBinaryVersions: _*)
+class PluginModule(millBinaryVersion: String)
+    extends ScalaModule
+    with MillNativeImagePublishModule {
   def artifactName = s"mill-native-image_mill$millBinaryVersion"
+  def millSourcePath = super.millSourcePath / os.up
   def scalaVersion = Scala.version
   def ivyDeps = super.ivyDeps() ++ Agg(
-    ivy"com.lihaoyi::mill-scalalib:$millVersion"
+    ivy"com.lihaoyi::mill-scalalib:${millVersion(millBinaryVersion)}"
   )
 }
 
