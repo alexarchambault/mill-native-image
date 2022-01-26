@@ -286,7 +286,7 @@ object NativeImage {
 
     val graalVmHome = Option(System.getenv("GRAALVM_HOME")).getOrElse {
       import sys.process._
-      (csCommand ++ Seq("java-home", "--jvm", jvmId, "--jvm-index", jvmIndex)).!!.trim
+      (csCommand ++ Seq("java-home", "--jvm", jvmId, "--jvm-index", jvmIndex, "--update", "--ttl", "0")).!!.trim
     }
 
     val ext = if (Properties.isWin) ".cmd" else ""
