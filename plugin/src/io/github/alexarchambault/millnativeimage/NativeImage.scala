@@ -243,13 +243,17 @@ object NativeImage {
   // should be the default index in the upcoming coursier release (> 2.0.16)
   def jvmIndex = "https://github.com/coursier/jvm-index/raw/master/index.json"
 
-  private def vcVersions = Seq("2019", "2017")
+  private def vcVersions = Seq("2022", "2019", "2017")
   private def vcEditions = Seq("Enterprise", "Community", "BuildTools")
   lazy val vcvarsCandidates = Option(System.getenv("VCVARSALL")) ++ {
     for {
+      isX86 <- Seq(false, true)
       version <- vcVersions
       edition <- vcEditions
-    } yield """C:\Program Files (x86)\Microsoft Visual Studio\""" + version + "\\" + edition + """\VC\Auxiliary\Build\vcvars64.bat"""
+    } yield {
+      val programFiles = if (isX86) "Program Files (x86)" else "Program Files"
+      """C:\""" + programFiles + """\Microsoft Visual Studio\""" + version + "\\" + edition + """\VC\Auxiliary\Build\vcvars64.bat"""
+    }
   }
 
   def vcvarsOpt: Option[os.Path] =
