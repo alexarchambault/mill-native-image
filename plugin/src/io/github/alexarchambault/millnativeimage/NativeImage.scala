@@ -41,11 +41,23 @@ trait NativeImage extends Module {
     Properties.isWin && nativeImageDockerParams().isEmpty
   }
 
-  def nativeImageScript = T{
+  def nativeImageScript(imageDest: os.Path) = T.command {
     val cp = nativeImageClassPath().map(_.path)
     val mainClass0 = nativeImageMainClass()
-    val dest = T.dest / nativeImageName()
-    val actualDest = T.dest / (nativeImageName() + platformExtension)
+    val nativeImageDest = {
+      val dir = T.dest
+      val str = dir.toString
+      val idx = str.lastIndexOf("nativeImageScript")
+      if (idx < 0) {
+        System.err.println(s"Something went wrong, cannot find nativeImageScript in path $str")
+        dir
+      } else {
+        val updated = str.take(idx) + "nativeImage" + str.drop(idx + "nativeImageScript".length)
+        os.Path(updated)
+      }
+    }
+    val dest = nativeImageDest / nativeImageName()
+    val actualDest = nativeImageDest / (nativeImageName() + platformExtension)
 
     val (command, tmpDestOpt) = generateNativeImage(
       nativeImageCsCommand(),
@@ -65,26 +77,44 @@ trait NativeImage extends Module {
 
     def bashScript = {
       val q = "\""
-      val extra = tmpDestOpt.fold("") { tmpDest =>
+      def extra(from: os.Path, to: os.Path, move: Boolean) =
         System.lineSeparator() +
-          s"mv $q$tmpDest$q $q$actualDest$q"
+          s"mkdir -p $q${to / os.up}$q" +
+          System.lineSeparator() +
+          s"${if (move) "mv" else "cp"} $q$from$q $q$to$q"
+
+      val extra0 = tmpDestOpt match {
+        case None =>
+          extra(actualDest, imageDest, move = true)
+        case Some(tmpDest) =>
+          extra(tmpDest, actualDest, move = false) +
+            extra(tmpDest, imageDest, move = true)
       }
 
       s"""#!/usr/bin/env bash
          |set -e
          |${command.map(a => q + a.replace(q, "\\" + q) + q).mkString(" ")}
-         |""".stripMargin + extra
+         |""".stripMargin + extra0
     }
 
     def batScript = {
       val q = "\""
-      val extra = tmpDestOpt.fold("") { tmpDest =>
+      def extra(from: os.Path, to: os.Path, move: Boolean) =
         System.lineSeparator() +
-          s"mv $q$tmpDest$q $q$actualDest$q"
+          s"md $q${to / os.up}$q" +
+          System.lineSeparator() +
+          s"${if (move) "mv" else "copy /y"} $q$from$q $q$to$q"
+
+      val extra0 = tmpDestOpt match {
+        case None =>
+          extra(actualDest, imageDest, move = true)
+        case Some(tmpDest) =>
+          extra(tmpDest, actualDest, move = false) +
+            extra(tmpDest, imageDest, move = true)
       }
 
       s"""@call ${command.map(a => q + a.replace(q, "\\" + q) + q).mkString(" ")}
-         |""".stripMargin + extra
+         |""".stripMargin + extra0
     }
 
     val content = if (Properties.isWin) batScript else bashScript
@@ -97,10 +127,13 @@ trait NativeImage extends Module {
     PathRef(scriptPath)
   }
 
-  def writeNativeImageScript(dest: String) = T.command {
-    val dest0 = os.Path(dest, os.pwd)
-    val script = nativeImageScript().path
-    os.copy(script, dest0, replaceExisting = true, createFolders = true)
+  def writeNativeImageScript(scriptDest: String, imageDest: String) = {
+    val scriptDest0 = os.Path(scriptDest, os.pwd)
+    val imageDest0 = os.Path(imageDest, os.pwd)
+    T.command {
+      val script = nativeImageScript(imageDest0)().path
+      os.copy(script, scriptDest0, replaceExisting = true, createFolders = true)
+    }
   }
 
   def nativeImage =
