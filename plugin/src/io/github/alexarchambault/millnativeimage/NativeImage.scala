@@ -41,7 +41,8 @@ trait NativeImage extends Module {
     Properties.isWin && nativeImageDockerParams().isEmpty
   }
 
-  def nativeImageScript(imageDest: os.Path) = T.command {
+  def nativeImageScript(imageDest: String = "") = T.command {
+    val imageDestOpt = if (imageDest.isEmpty) None else Some(os.Path(imageDest, os.pwd))
     val cp = nativeImageClassPath().map(_.path)
     val mainClass0 = nativeImageMainClass()
     val nativeImageDest = {
@@ -83,18 +84,18 @@ trait NativeImage extends Module {
           System.lineSeparator() +
           s"${if (move) "mv" else "cp"} $q$from$q $q$to$q"
 
-      val extra0 = tmpDestOpt match {
-        case None =>
-          extra(actualDest, imageDest, move = true)
-        case Some(tmpDest) =>
-          extra(tmpDest, actualDest, move = false) +
-            extra(tmpDest, imageDest, move = true)
+      val extra0 = tmpDestOpt.fold("") { tmpDest =>
+        extra(tmpDest, actualDest, move = true)
+      }
+
+      val extra1 = imageDestOpt.fold("") { imageDest =>
+        extra(actualDest, imageDest, move = false)
       }
 
       s"""#!/usr/bin/env bash
          |set -e
          |${command.map(a => q + a.replace(q, "\\" + q) + q).mkString(" ")}
-         |""".stripMargin + extra0
+         |""".stripMargin + extra0 + extra1
     }
 
     def batScript = {
@@ -105,16 +106,16 @@ trait NativeImage extends Module {
           System.lineSeparator() +
           s"${if (move) "mv" else "copy /y"} $q$from$q $q$to$q"
 
-      val extra0 = tmpDestOpt match {
-        case None =>
-          extra(actualDest, imageDest, move = true)
-        case Some(tmpDest) =>
-          extra(tmpDest, actualDest, move = false) +
-            extra(tmpDest, imageDest, move = true)
+      val extra0 = tmpDestOpt.fold("") { tmpDest =>
+        extra(tmpDest, actualDest, move = true)
+      }
+
+      val extra1 = imageDestOpt.fold("") { imageDest =>
+        extra(actualDest, imageDest, move = false)
       }
 
       s"""@call ${command.map(a => q + a.replace(q, "\\" + q) + q).mkString(" ")}
-         |""".stripMargin + extra0
+         |""".stripMargin + extra0 + extra1
     }
 
     val content = if (Properties.isWin) batScript else bashScript
@@ -129,9 +130,8 @@ trait NativeImage extends Module {
 
   def writeNativeImageScript(scriptDest: String, imageDest: String) = {
     val scriptDest0 = os.Path(scriptDest, os.pwd)
-    val imageDest0 = os.Path(imageDest, os.pwd)
     T.command {
-      val script = nativeImageScript(imageDest0)().path
+      val script = nativeImageScript(imageDest)().path
       os.copy(script, scriptDest0, replaceExisting = true, createFolders = true)
     }
   }
