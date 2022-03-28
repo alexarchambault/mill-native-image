@@ -77,7 +77,7 @@ trait NativeImage extends Module {
     val scriptPath = T.dest / scriptName
 
     def bashScript = {
-      val q = "\""
+      val q = "\'"
       def extra(from: os.Path, to: os.Path, move: Boolean) =
         System.lineSeparator() +
           s"mkdir -p $q${to / os.up}$q" +
