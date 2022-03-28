@@ -429,7 +429,7 @@ object NativeImage {
             }
             val cp = copiedCp.mkString(File.pathSeparator)
             val escapedCommand = command("native-image", params.extraNativeImageArgs, Some("/data"), "output", cp).map {
-              case s if s.contains(" ") => "\"" + s + "\""
+              case s if s.contains(" ") || s.contains("$") || s.contains("\"") || s.contains("'") => "'" + s.replace("'", "\\'") + "'"
               case s => s
             }
             val backTick = "\\"
