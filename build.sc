@@ -31,7 +31,7 @@ trait MillNativeImagePublishModule extends PublishModule {
         .map(_.stripPrefix("v"))
         .flatMap { tag =>
           val idx = tag.lastIndexOf(".")
-          if (idx >= 0) Some(tag.take(idx + 1) + (tag.drop(idx + 1).toInt + 1).toString + "-SNAPSHOT")
+          if (idx >= 0) Some(tag.take(idx + 1) + (tag.drop(idx + 1).takeWhile(_.isDigit).toInt + 1).toString + "-SNAPSHOT")
           else None
         }
         .getOrElse("0.0.1-SNAPSHOT")
