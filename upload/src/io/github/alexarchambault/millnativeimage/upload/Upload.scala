@@ -29,11 +29,11 @@ object Upload {
     s"$arch-$os"
   }
 
-  private def contentType(path: Path): String = {
+  private def contentType(path: os.Path): String = {
 
     val isZipFile = {
       var zf: ZipFile = null
-      try { zf = new ZipFile(path.toFile); true }
+      try { zf = new ZipFile(path.toIO); true }
       catch { case _: ZipException => false }
       finally { if (zf != null) zf.close() }
     }
@@ -116,7 +116,7 @@ object Upload {
     dryRun: Boolean,
     overwrite: Boolean
   )(
-    uploads: (Path, String)*
+    uploads: (os.Path, String)*
   ): Unit = {
 
     val releaseId0 = releaseId(ghOrg, ghProj, ghToken, tag)
@@ -152,7 +152,7 @@ object Upload {
       else {
         System.err.println(s"Uploading $f0 as $name")
         quickRequest
-          .body(f0)
+          .body(f0.toNIO)
           .header("Authorization", s"token $ghToken")
           .header("Content-Type", contentType0)
           .post(uri)
