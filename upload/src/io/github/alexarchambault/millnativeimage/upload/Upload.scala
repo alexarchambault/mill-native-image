@@ -1,14 +1,13 @@
 package io.github.alexarchambault.millnativeimage.upload
 
-import java.io._
-import java.nio.file.attribute.FileTime
-import java.nio.file.Path
-import java.util.zip.{GZIPOutputStream, ZipEntry, ZipException, ZipFile, ZipOutputStream}
-
 import sttp.client.quick._
 
-import scala.util.control.NonFatal
+import java.io._
+import java.nio.file.Path
+import java.nio.file.attribute.FileTime
+import java.util.zip.{GZIPOutputStream, ZipEntry, ZipException, ZipFile, ZipOutputStream}
 import scala.util.Properties
+import scala.util.control.NonFatal
 
 object Upload {
 
