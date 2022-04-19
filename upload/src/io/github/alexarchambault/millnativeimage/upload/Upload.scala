@@ -3,8 +3,10 @@ package io.github.alexarchambault.millnativeimage.upload
 import sttp.client.quick._
 
 import java.io._
+import java.math.BigInteger
 import java.nio.file.Path
 import java.nio.file.attribute.FileTime
+import java.security.MessageDigest
 import java.util.zip.{GZIPOutputStream, ZipEntry, ZipException, ZipFile, ZipOutputStream}
 import scala.util.Properties
 import scala.util.control.NonFatal
@@ -113,7 +115,8 @@ object Upload {
     ghToken: String,
     tag: String,
     dryRun: Boolean,
-    overwrite: Boolean
+    overwrite: Boolean,
+    printChecksum: Boolean = true
   )(
     uploads: (os.Path, String)*
   ): Unit = {
@@ -131,6 +134,9 @@ object Upload {
     }
 
     for ((f0, name) <- uploads) {
+
+      if (printChecksum)
+        printChecksums(f0)
 
       currentAssets0
         .get(name)
@@ -158,6 +164,51 @@ object Upload {
           .send()
       }
     }
+  }
+
+  private def checksum(is: InputStream, alg: String, len: Int): String = {
+    val md     = MessageDigest.getInstance(alg)
+
+    val b = Array.ofDim[Byte](16 * 1024)
+    var read = -1
+    while ({
+      read = is.read(b)
+      read >= 0
+    })
+      if (read > 0)
+        md.update(b)
+
+    val digest = md.digest()
+    val res    = new BigInteger(1, digest).toString(16)
+    if (res.length < len)
+      ("0" * (len - res.length)) + res
+    else
+      res
+  }
+
+  private def checksum(f: os.Path, alg: String, len: Int): String = {
+    var is: InputStream = null
+    try {
+      is = os.read.inputStream(f)
+      checksum(is, alg, len)
+    }
+    finally {
+      if (is != null)
+        is.close()
+    }
+  }
+
+  private def sha256(f: os.Path): String =
+    checksum(f, "SHA-256", 64)
+  private def sha1(f: os.Path): String =
+    checksum(f, "SHA-1", 40)
+
+  private def printChecksums(f: os.Path): Unit = {
+    System.err.println(f.toString)
+    val sha1Value = sha1(f)
+    System.err.println(s"    SHA-1: $sha1Value")
+    val sha256Value = sha256(f)
+    System.err.println(s"  SHA-256: $sha256Value")
   }
 
   private def readInto(is: InputStream, os: OutputStream): Unit = {
@@ -201,39 +252,49 @@ object Upload {
     directory: String,
     name: String,
     compress: Boolean,
-    suffix: String = ""
+    suffix: String = "",
+    printChecksums: Boolean = true
   ): os.Path = {
+
+    if (printChecksums)
+      Upload.printChecksums(nativeLauncher)
+
     val path = os.Path(directory, os.pwd)
-    if (Properties.isWin && compress) {
-      val dest = path / s"$name-$platformSuffix$suffix.zip"
-      writeInZip(s"$name$platformExtension", nativeLauncher, dest)
-      dest
-    } else {
-      val dest = path / s"$name-$platformSuffix$suffix$platformExtension"
-      os.copy(nativeLauncher, dest, createFolders = true, replaceExisting = true)
-      if (compress) {
-        val compressedDest = path / s"$name-$platformSuffix$suffix.gz"
-        var fis: FileInputStream = null
-        var fos: FileOutputStream = null
-        var gzos: GZIPOutputStream = null
-        try {
-          fis = new FileInputStream(dest.toIO)
-          fos = new FileOutputStream(compressedDest.toIO)
-          gzos = new GZIPOutputStream(fos)
-
-          readInto(fis, gzos)
-          gzos.finish()
-        } finally {
-          if (gzos != null) gzos.close()
-          if (fos != null) fos.close()
-          if (fis != null) fis.close()
-        }
-
-        os.remove(dest)
-        compressedDest
+    val dest =
+      if (Properties.isWin && compress) {
+        val dest0 = path / s"$name-$platformSuffix$suffix.zip"
+        writeInZip(s"$name$platformExtension", nativeLauncher, dest0)
+        dest0
       } else {
-        dest
+        val dest0 = path / s"$name-$platformSuffix$suffix$platformExtension"
+        os.copy(nativeLauncher, dest0, createFolders = true, replaceExisting = true)
+        if (compress) {
+          val compressedDest = path / s"$name-$platformSuffix$suffix.gz"
+          var fis: FileInputStream = null
+          var fos: FileOutputStream = null
+          var gzos: GZIPOutputStream = null
+          try {
+            fis = new FileInputStream(dest0.toIO)
+            fos = new FileOutputStream(compressedDest.toIO)
+            gzos = new GZIPOutputStream(fos)
+
+            readInto(fis, gzos)
+            gzos.finish()
+          } finally {
+            if (gzos != null) gzos.close()
+            if (fos != null) fos.close()
+            if (fis != null) fis.close()
+          }
+
+          os.remove(dest0)
+          compressedDest
+        } else
+          dest0
       }
-    }
+
+    if (printChecksums)
+      Upload.printChecksums(dest)
+
+    dest
   }
 }
