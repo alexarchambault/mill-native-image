@@ -446,7 +446,7 @@ object NativeImage {
             val csPath = os.Path(os.proc(csCommand, "get", params.csUrl).call().out.text.trim)
             if (csPath.last.endsWith(".gz")) {
               os.copy.over(csPath, dockerWorkingDir / "cs.gz")
-              os.proc("gzip", "-d", dockerWorkingDir / "cs.gz").call(stdout = os.Inherit)
+              os.proc("gzip", "-df", dockerWorkingDir / "cs.gz").call(stdout = os.Inherit)
             }
             else
               os.copy.over(csPath, dockerWorkingDir / "cs")
