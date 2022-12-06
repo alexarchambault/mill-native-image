@@ -57,8 +57,10 @@ class PluginModule(millBinaryVersion: String)
   def artifactName = s"mill-native-image_mill$millBinaryVersion"
   def millSourcePath = super.millSourcePath / os.up
   def scalaVersion = Scala.version
+  def scalacOptions = super.scalacOptions() ++ Agg("-Ytasty-reader")
   def ivyDeps = super.ivyDeps() ++ Agg(
-    ivy"com.lihaoyi::mill-scalalib:${millVersion(millBinaryVersion)}"
+    ivy"com.lihaoyi::mill-scalalib:${millVersion(millBinaryVersion)}",
+    ivy"org.virtuslab.scala-cli::scala3-graal:0.1.18"
   )
 }
 

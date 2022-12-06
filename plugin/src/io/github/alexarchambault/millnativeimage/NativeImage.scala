@@ -4,6 +4,7 @@ import java.io.File
 import java.nio.charset.Charset
 
 import mill._
+import scala.cli.graal.{BytecodeProcessor, TempCache}
 
 import scala.util.Properties
 
@@ -356,16 +357,47 @@ object NativeImage {
 
     def command(nativeImage: String, extraNativeImageArgs: Seq[String], destDir: Option[String], destName: String, classPath: String) = {
       val destDirOptions = destDir.toList.map(d => s"-H:Path=$d")
+      val needsProcessing = mill.BuildInfo.scalaVersion.startsWith("3.")
+      val (processedClassPath, toClean, scala3extraOptions) =
+        if (needsProcessing) {
+          val processed =
+            BytecodeProcessor.processClassPath(classPath, TempCache).toSeq
+          val nativeConfigFile = os.temp(suffix = ".json")
+          os.write.over(
+            nativeConfigFile,
+            """[
+                    |  {
+                    |    "name": "sun.misc.Unsafe",
+                    |    "allDeclaredConstructors": true,
+                    |    "allPublicConstructors": true,
+                    |    "allDeclaredMethods": true,
+                    |    "allDeclaredFields": true
+                    |  }
+                    |]
+                    |""".stripMargin
+          )
+          val classPathProc = processed.map(_.path).mkString(File.pathSeparator)
+          val scala3Options = Seq(
+            s"-H:ReflectionConfigurationFiles=$nativeConfigFile"
+          )
+          val toClean = nativeConfigFile +: BytecodeProcessor.toClean(processed)
+          (classPathProc, toClean, scala3Options)
+        } else {
+          (classPath, Seq.empty, Seq.empty)
+        }
+
       Seq(nativeImage) ++
-      extraNativeImageArgs ++
-      nativeImageOptions ++
-      destDirOptions ++
-      Seq(
-        s"-H:Name=$destName",
-        "-cp",
-        classPath,
-        mainClass
-      )
+        extraNativeImageArgs ++
+        nativeImageOptions ++
+        destDirOptions ++
+        scala3extraOptions ++
+        Seq(
+          s"-H:Name=$destName",
+          "-cp",
+          processedClassPath,
+          mainClass
+        )
+      // TODO: util.Try(toClean.foreach(os.remove.all))
     }
 
     def defaultCommand = {
