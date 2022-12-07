@@ -20,7 +20,7 @@ trait NativeImage extends Module {
     Seq(systemCs)
   }
 
-  def scalaVersionTask = this match {
+  private def scalaVersionTask = this match {
     case m: ScalaModule => m.scalaVersion
     case _ => T.task { "2.13" }
   }
