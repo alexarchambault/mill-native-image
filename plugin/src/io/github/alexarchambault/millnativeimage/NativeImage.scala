@@ -69,7 +69,7 @@ trait NativeImage extends Module {
     val dest = nativeImageDest / nativeImageName()
     val actualDest = nativeImageDest / (nativeImageName() + platformExtension)
 
-    val (command, tmpDestOpt) = generateNativeImage(
+    val (command, tmpDestOpt, toClean) = generateNativeImage(
       scalaVersionTask(),
       nativeImageCsCommand(),
       nativeImageGraalVmJvmId(),
@@ -157,7 +157,7 @@ trait NativeImage extends Module {
         if (os.isFile(actualDest))
           T.log.info(s"Warning: not re-computing ${actualDest.relativeTo(os.pwd)}, delete it if you think it's stale")
         else {
-          val (command, tmpDestOpt) = generateNativeImage(
+          val (command, tmpDestOpt, toClean) = generateNativeImage(
             scalaVersionTask(),
             nativeImageCsCommand(),
             nativeImageGraalVmJvmId(),
@@ -175,6 +175,7 @@ trait NativeImage extends Module {
             stdin = os.Inherit,
             stdout = os.Inherit
           )
+          scala.util.Try(toClean.foreach(os.remove.all))
           if (res.exitCode == 0)
             tmpDestOpt.foreach(tmpDest => os.copy(tmpDest, dest))
           else
@@ -190,7 +191,7 @@ trait NativeImage extends Module {
         val dest = T.dest / nativeImageName()
         val actualDest = T.dest / (nativeImageName() + platformExtension)
 
-        val (command, tmpDestOpt) = generateNativeImage(
+        val (command, tmpDestOpt, toClean) = generateNativeImage(
           scalaVersionTask(),
           nativeImageCsCommand(),
           nativeImageGraalVmJvmId(),
@@ -208,6 +209,7 @@ trait NativeImage extends Module {
           stdin = os.Inherit,
           stdout = os.Inherit
         )
+        scala.util.Try(toClean.foreach(os.remove.all))
         if (res.exitCode == 0)
           tmpDestOpt.foreach(tmpDest => os.copy(tmpDest, dest))
         else
@@ -332,7 +334,7 @@ object NativeImage {
     dockerWorkingDir: os.Path,
     createManifest: Boolean,
     workingDir: os.Path
-  ): (Seq[String], Option[os.Path]) = {
+  ): (Seq[String], Option[os.Path], Seq[os.Path]) = {
 
     val graalVmHome = Option(System.getenv("GRAALVM_HOME")).getOrElse {
       import sys.process._
@@ -367,7 +369,7 @@ object NativeImage {
       } else
         classPath.map(_.toString).mkString(File.pathSeparator)
 
-    def command(nativeImage: String, extraNativeImageArgs: Seq[String], destDir: Option[String], destName: String, classPath: String) = {
+    def command(nativeImage: String, extraNativeImageArgs: Seq[String], destDir: Option[String], destName: String, classPath: String): (Seq[String], Seq[os.Path]) = {
       val destDirOptions = destDir.toList.map(d => s"-H:Path=$d")
       val needsProcessing = isScala3(scalaVersion)
       val (processedClassPath, toClean, scala3extraOptions) =
@@ -397,7 +399,7 @@ object NativeImage {
           (classPath, Seq.empty, Seq.empty)
         }
 
-      Seq(nativeImage) ++
+      (Seq(nativeImage) ++
         extraNativeImageArgs ++
         nativeImageOptions ++
         destDirOptions ++
@@ -408,26 +410,29 @@ object NativeImage {
           processedClassPath,
           mainClass
         )
+        , toClean)
     }
 
-    def defaultCommand = {
+    def defaultCommand: (Seq[String], Seq[os.Path]) = {
       val relDest = dest.relativeTo(os.pwd)
       val destDirOpt = if (relDest.segments.length > 1) Some((relDest / os.up).toString) else None
       val destName = relDest.last
       command(nativeImage, Nil, destDirOpt, destName, finalCp)
     }
 
-    val (finalCommand, tmpDestOpt) =
+    val (finalCommand, tmpDestOpt, toClean) =
       if (Properties.isWin)
         vcvarsOpt match {
           case None =>
             System.err.println(s"Warning: vcvarsall script not found in predefined locations:")
             for (loc <- vcvarsCandidates)
               System.err.println(s"  $loc")
-            (defaultCommand, None)
+            val (cmd, toClean) = defaultCommand
+            (cmd, None, toClean)
           case Some(vcvars) =>
             // chcp 437 sometimes needed, see https://github.com/oracle/graal/issues/2522
-            val escapedCommand = defaultCommand.map {
+            val (escapedCommand, toClean) = defaultCommand
+            escapedCommand.map {
               case s if s.contains(" ") => "\"" + s + "\""
               case s => s
             }
@@ -439,7 +444,7 @@ object NativeImage {
                 |""".stripMargin
             val scriptPath = workingDir / "run-native-image.bat"
             os.write.over(scriptPath, script.getBytes, createFolders = true)
-            (Seq("cmd", "/c", scriptPath.toString), None)
+            return (Seq("cmd", "/c", scriptPath.toString), None, toClean)
         }
       else
         dockerParamsOpt match {
@@ -470,7 +475,8 @@ object NativeImage {
               s"/data/cp/$name"
             }
             val cp = copiedCp.mkString(File.pathSeparator)
-            val escapedCommand = command("native-image", params.extraNativeImageArgs, Some("/data"), "output", cp).map {
+            val (escapedCommand, toClean) = command("native-image", params.extraNativeImageArgs, Some("/data"), "output", cp)
+            escapedCommand.map {
               case s if s.contains(" ") || s.contains("$") || s.contains("\"") || s.contains("'") => "'" + s.replace("'", "\\'") + "'"
               case s => s
             }
@@ -502,12 +508,13 @@ object NativeImage {
               params.imageName,
               "/data/run-native-image.sh"
             )
-            (dockerCmd, Some(dockerWorkingDir / "output"))
+            return (dockerCmd, Some(dockerWorkingDir / "output"), toClean)
           case None =>
-            (defaultCommand, None)
+            val (cmd, toClean) = defaultCommand
+            return (cmd, None, toClean)
         }
 
-    (finalCommand, tmpDestOpt)
+    return (finalCommand, tmpDestOpt, toClean)
   }
 
 }
