@@ -4,6 +4,9 @@ import java.io.File
 import java.nio.charset.Charset
 
 import mill._
+import mill.scalalib._
+import mill.scalalib.api.Util.isScala3
+
 import scala.cli.graal.{BytecodeProcessor, TempCache}
 
 import scala.util.Properties
@@ -15,6 +18,11 @@ trait NativeImage extends Module {
 
   def nativeImageCsCommand = T{
     Seq(systemCs)
+  }
+
+  def scalaVersionTask = this match {
+    case m: ScalaModule => m.scalaVersion
+    case _ => T.task { "2.13" }
   }
 
   def nativeImageGraalVmJvmId = T{
@@ -62,6 +70,7 @@ trait NativeImage extends Module {
     val actualDest = nativeImageDest / (nativeImageName() + platformExtension)
 
     val (command, tmpDestOpt) = generateNativeImage(
+      scalaVersionTask(),
       nativeImageCsCommand(),
       nativeImageGraalVmJvmId(),
       cp,
@@ -149,6 +158,7 @@ trait NativeImage extends Module {
           T.log.info(s"Warning: not re-computing ${actualDest.relativeTo(os.pwd)}, delete it if you think it's stale")
         else {
           val (command, tmpDestOpt) = generateNativeImage(
+            scalaVersionTask(),
             nativeImageCsCommand(),
             nativeImageGraalVmJvmId(),
             cp,
@@ -181,6 +191,7 @@ trait NativeImage extends Module {
         val actualDest = T.dest / (nativeImageName() + platformExtension)
 
         val (command, tmpDestOpt) = generateNativeImage(
+          scalaVersionTask(),
           nativeImageCsCommand(),
           nativeImageGraalVmJvmId(),
           cp,
@@ -310,6 +321,7 @@ object NativeImage {
   }
 
   def generateNativeImage(
+    scalaVersion: String,
     csCommand: Seq[String],
     jvmId: String,
     classPath: Seq[os.Path],
@@ -357,15 +369,14 @@ object NativeImage {
 
     def command(nativeImage: String, extraNativeImageArgs: Seq[String], destDir: Option[String], destName: String, classPath: String) = {
       val destDirOptions = destDir.toList.map(d => s"-H:Path=$d")
-      val needsProcessing = mill.BuildInfo.scalaVersion.startsWith("3.")
+      val needsProcessing = isScala3(scalaVersion)
       val (processedClassPath, toClean, scala3extraOptions) =
         if (needsProcessing) {
-          val processed =
-            BytecodeProcessor.processClassPath(classPath, TempCache).toSeq
+          val processed = BytecodeProcessor.processClassPath(classPath, TempCache).toSeq
           val nativeConfigFile = os.temp(suffix = ".json")
           os.write.over(
             nativeConfigFile,
-            """[
+                 """|[
                     |  {
                     |    "name": "sun.misc.Unsafe",
                     |    "allDeclaredConstructors": true,
@@ -397,7 +408,6 @@ object NativeImage {
           processedClassPath,
           mainClass
         )
-      // TODO: util.Try(toClean.foreach(os.remove.all))
     }
 
     def defaultCommand = {

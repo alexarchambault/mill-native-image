@@ -60,7 +60,8 @@ class PluginModule(millBinaryVersion: String)
   def scalacOptions = super.scalacOptions() ++ Agg("-Ytasty-reader")
   def ivyDeps = super.ivyDeps() ++ Agg(
     ivy"com.lihaoyi::mill-scalalib:${millVersion(millBinaryVersion)}",
-    ivy"org.virtuslab.scala-cli::scala3-graal:0.1.18"
+    ivy"org.virtuslab.scala-cli::scala3-graal:0.1.18",
+    ivy"org.virtuslab.scala-cli:scala3-graal-processor_3:0.1.18"
   )
 }
 
