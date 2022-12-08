@@ -389,47 +389,48 @@ object NativeImage {
         System.err.println(s"Warning: $nativeImage not found, and not installed by 'gu install native-image'")
     }
 
+    val (processedClassPath, toClean, scala3extraOptions) =
+      if (mayHaveScala3Pre32Jars) {
+        val processed = BytecodeProcessor.processClassPath(classPath.mkString(File.pathSeparator), TempCache).toSeq
+        val content =
+          """[
+            |  {
+            |    "name": "sun.misc.Unsafe",
+            |    "allDeclaredConstructors": true,
+            |    "allPublicConstructors": true,
+            |    "allDeclaredMethods": true,
+            |    "allDeclaredFields": true
+            |  }
+            |]
+            |""".stripMargin
+        val nativeConfigFile = os.temp(content, suffix = ".json")
+        val classPathProc = processed.map(_.path)
+        val scala3Options = Seq(
+          s"-H:ReflectionConfigurationFiles=$nativeConfigFile"
+        )
+        val toClean = nativeConfigFile +: BytecodeProcessor.toClean(processed)
+        (classPathProc, toClean, scala3Options)
+      } else
+        (classPath, Nil, Nil)
+
     val finalCp =
       if (createManifest) {
         import java.util.jar._
         val manifest = new Manifest
         val attributes = manifest.getMainAttributes
         attributes.put(Attributes.Name.MANIFEST_VERSION, "1.0")
-        attributes.put(Attributes.Name.CLASS_PATH, classPath.map(_.toIO.getAbsolutePath).mkString(" "))
+        attributes.put(Attributes.Name.CLASS_PATH, processedClassPath.map(_.toIO.getAbsolutePath).mkString(" "))
         val jarFile = File.createTempFile("classpathJar", ".jar")
         val jos = new JarOutputStream(new java.io.FileOutputStream(jarFile), manifest)
         jos.close()
         jarFile.getAbsolutePath
       } else
-        classPath.map(_.toString).mkString(File.pathSeparator)
+        processedClassPath.map(_.toString).mkString(File.pathSeparator)
 
-    def command(nativeImage: String, extraNativeImageArgs: Seq[String], destDir: Option[String], destName: String, classPath: String): (Seq[String], Seq[os.Path]) = {
+    def command(nativeImage: String, extraNativeImageArgs: Seq[String], destDir: Option[String], destName: String, classPath: String): Seq[String] = {
       val destDirOptions = destDir.toList.map(d => s"-H:Path=$d")
-      val (processedClassPath, toClean, scala3extraOptions) =
-        if (mayHaveScala3Pre32Jars) {
-          val processed = BytecodeProcessor.processClassPath(classPath, TempCache).toSeq
-          val content =
-            """[
-              |  {
-              |    "name": "sun.misc.Unsafe",
-              |    "allDeclaredConstructors": true,
-              |    "allPublicConstructors": true,
-              |    "allDeclaredMethods": true,
-              |    "allDeclaredFields": true
-              |  }
-              |]
-              |""".stripMargin
-          val nativeConfigFile = os.temp(content, suffix = ".json")
-          val classPathProc = processed.map(_.path).mkString(File.pathSeparator)
-          val scala3Options = Seq(
-            s"-H:ReflectionConfigurationFiles=$nativeConfigFile"
-          )
-          val toClean = nativeConfigFile +: BytecodeProcessor.toClean(processed)
-          (classPathProc, toClean, scala3Options)
-        } else
-          (classPath, Nil, Nil)
 
-      val command = Seq(nativeImage) ++
+      Seq(nativeImage) ++
         extraNativeImageArgs ++
         nativeImageOptions ++
         destDirOptions ++
@@ -437,33 +438,29 @@ object NativeImage {
         Seq(
           s"-H:Name=$destName",
           "-cp",
-          processedClassPath,
+          classPath,
           mainClass
         )
-
-      (command, toClean)
     }
 
-    def defaultCommand: (Seq[String], Seq[os.Path]) = {
+    def defaultCommand: Seq[String] = {
       val relDest = dest.relativeTo(os.pwd)
       val destDirOpt = if (relDest.segments.length > 1) Some((relDest / os.up).toString) else None
       val destName = relDest.last
       command(nativeImage, Nil, destDirOpt, destName, finalCp)
     }
 
-    val (finalCommand, tmpDestOpt, toClean) =
+    val (finalCommand, tmpDestOpt) =
       if (Properties.isWin)
         vcvarsOpt match {
           case None =>
             System.err.println(s"Warning: vcvarsall script not found in predefined locations:")
             for (loc <- vcvarsCandidates)
               System.err.println(s"  $loc")
-            val (cmd, toClean) = defaultCommand
-            (cmd, None, toClean)
+            (defaultCommand, None)
           case Some(vcvars) =>
             // chcp 437 sometimes needed, see https://github.com/oracle/graal/issues/2522
-            val (escapedCommand, toClean) = defaultCommand
-            escapedCommand.map {
+            val escapedCommand = defaultCommand.map {
               case s if s.contains(" ") => "\"" + s + "\""
               case s => s
             }
@@ -475,7 +472,7 @@ object NativeImage {
                 |""".stripMargin
             val scriptPath = workingDir / "run-native-image.bat"
             os.write.over(scriptPath, script.getBytes, createFolders = true)
-            (Seq("cmd", "/c", scriptPath.toString), None, toClean)
+            (Seq("cmd", "/c", scriptPath.toString), None)
         }
       else
         dockerParamsOpt match {
@@ -485,7 +482,7 @@ object NativeImage {
             if (os.exists(cpDir))
               os.remove.all(cpDir)
             os.makeDir.all(cpDir)
-            val copiedCp = classPath.filter(os.exists(_)).map { f =>
+            val copiedCp = processedClassPath.filter(os.exists(_)).map { f =>
               val name =
                 if (entries(f.last)) {
                   var i = 1
@@ -506,8 +503,7 @@ object NativeImage {
               s"/data/cp/$name"
             }
             val cp = copiedCp.mkString(File.pathSeparator)
-            val (escapedCommand, toClean) = command("native-image", params.extraNativeImageArgs, Some("/data"), "output", cp)
-            escapedCommand.map {
+            val escapedCommand = command("native-image", params.extraNativeImageArgs, Some("/data"), "output", cp).map {
               case s if s.contains(" ") || s.contains("$") || s.contains("\"") || s.contains("'") => "'" + s.replace("'", "\\'") + "'"
               case s => s
             }
@@ -539,10 +535,9 @@ object NativeImage {
               params.imageName,
               "/data/run-native-image.sh"
             )
-            (dockerCmd, Some(dockerWorkingDir / "output"), toClean)
+            (dockerCmd, Some(dockerWorkingDir / "output"))
           case None =>
-            val (cmd, toClean) = defaultCommand
-            (cmd, None, toClean)
+            (defaultCommand, None)
         }
 
     (finalCommand, tmpDestOpt, toClean)
