@@ -208,7 +208,7 @@ trait NativeImage extends Module {
 
 object NativeImage {
 
-  def defaultGraalVmVersion = "21.2.0"
+  def defaultGraalVmVersion = "22.3.0"
 
   def defaultLinuxStaticDockerImage = "messense/rust-musl-cross@sha256:12d0dd535ef7364bf49cb2608ae7eaf60e40d07834eb4d9160c592422a08d3b3"
   def csLinuxX86_64Url(version: String) = s"https://github.com/coursier/coursier/releases/download/v$version/cs-x86_64-pc-linux"
