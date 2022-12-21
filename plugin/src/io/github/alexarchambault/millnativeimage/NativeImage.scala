@@ -17,7 +17,7 @@ trait NativeImage extends Module {
   }
 
   def nativeImageGraalVmJvmId = T{
-    s"graalvm-java11:$defaultGraalVmVersion"
+    s"graalvm-java17:$defaultGraalVmVersion"
   }
 
   def nativeImageClassPath: T[Seq[PathRef]]
