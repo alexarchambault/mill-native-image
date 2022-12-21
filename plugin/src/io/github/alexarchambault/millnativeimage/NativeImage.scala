@@ -11,13 +11,15 @@ trait NativeImage extends Module {
   import NativeImage._
 
   def nativeImagePersist: Boolean = false
+  def nativeImageUseJpms: T[Option[Boolean]] =
+    T(None)
 
   def nativeImageCsCommand = T{
     Seq(systemCs)
   }
 
   def nativeImageGraalVmJvmId = T{
-    s"graalvm-java11:$defaultGraalVmVersion"
+    s"graalvm-java17:$defaultGraalVmVersion"
   }
 
   def nativeImageClassPath: T[Seq[PathRef]]
@@ -60,7 +62,7 @@ trait NativeImage extends Module {
     val dest = nativeImageDest / nativeImageName()
     val actualDest = nativeImageDest / (nativeImageName() + platformExtension)
 
-    val (command, tmpDestOpt) = generateNativeImage(
+    val (command, tmpDestOpt, extraEnv) = generateNativeImage(
       nativeImageCsCommand(),
       nativeImageGraalVmJvmId(),
       cp,
@@ -70,7 +72,8 @@ trait NativeImage extends Module {
       nativeImageDockerParams(),
       nativeImageDockerWorkingDir(),
       nativeImageUseManifest(),
-      T.dest / "working-dir"
+      T.dest / "working-dir",
+      nativeImageUseJpms()
     )
 
     val scriptName = if (Properties.isWin) "generate.bat" else "generate.sh"
@@ -92,9 +95,18 @@ trait NativeImage extends Module {
         extra(actualDest, imageDest, move = false)
       }
 
+      val envLines = extraEnv
+        .toVector
+        .map {
+          case (k, v) =>
+            val q = "\""
+            s"export $k=$q${v.replace("\"", "\\\"")}$q" + System.lineSeparator()
+        }
+        .mkString
+
       s"""#!/usr/bin/env bash
          |set -e
-         |${command.map(a => q + a.replace(q, "\\" + q) + q).mkString(" ")}
+         |$envLines${command.map(a => q + a.replace(q, "\\" + q) + q).mkString(" ")}
          |""".stripMargin + extra0 + extra1
     }
 
@@ -114,7 +126,16 @@ trait NativeImage extends Module {
         extra(actualDest, imageDest, move = false)
       }
 
-      s"""@call ${command.map(a => q + a.replace(q, "\\" + q) + q).mkString(" ")}
+      val envLines = extraEnv
+        .toVector
+        .map {
+          case (k, v) =>
+            val q = "\""
+            s"set $q$k=${v.replace("\"", "\\\"")}$q" + System.lineSeparator()
+        }
+        .mkString
+
+      s"""${envLines}@call ${command.map(a => q + a.replace(q, "\\" + q) + q).mkString(" ")}
          |""".stripMargin + extra0 + extra1
     }
 
@@ -147,7 +168,7 @@ trait NativeImage extends Module {
         if (os.isFile(actualDest))
           T.log.info(s"Warning: not re-computing ${actualDest.relativeTo(os.pwd)}, delete it if you think it's stale")
         else {
-          val (command, tmpDestOpt) = generateNativeImage(
+          val (command, tmpDestOpt, extraEnv) = generateNativeImage(
             nativeImageCsCommand(),
             nativeImageGraalVmJvmId(),
             cp,
@@ -157,12 +178,14 @@ trait NativeImage extends Module {
             nativeImageDockerParams(),
             nativeImageDockerWorkingDir(),
             nativeImageUseManifest(),
-            T.dest / "working-dir"
+            T.dest / "working-dir",
+            nativeImageUseJpms()
           )
 
           val res = os.proc(command.map(x => x: os.Shellable): _*).call(
             stdin = os.Inherit,
-            stdout = os.Inherit
+            stdout = os.Inherit,
+            env = extraEnv
           )
           if (res.exitCode == 0)
             tmpDestOpt.foreach(tmpDest => os.copy(tmpDest, dest))
@@ -179,7 +202,7 @@ trait NativeImage extends Module {
         val dest = T.dest / nativeImageName()
         val actualDest = T.dest / (nativeImageName() + platformExtension)
 
-        val (command, tmpDestOpt) = generateNativeImage(
+        val (command, tmpDestOpt, extraEnv) = generateNativeImage(
           nativeImageCsCommand(),
           nativeImageGraalVmJvmId(),
           cp,
@@ -189,12 +212,14 @@ trait NativeImage extends Module {
           nativeImageDockerParams(),
           nativeImageDockerWorkingDir(),
           nativeImageUseManifest(),
-          T.dest / "working-dir"
+          T.dest / "working-dir",
+          nativeImageUseJpms()
         )
 
         val res = os.proc(command.map(x => x: os.Shellable): _*).call(
           stdin = os.Inherit,
-          stdout = os.Inherit
+          stdout = os.Inherit,
+          env = extraEnv
         )
         if (res.exitCode == 0)
           tmpDestOpt.foreach(tmpDest => os.copy(tmpDest, dest))
@@ -208,7 +233,7 @@ trait NativeImage extends Module {
 
 object NativeImage {
 
-  def defaultGraalVmVersion = "21.2.0"
+  def defaultGraalVmVersion = "22.3.0"
 
   def defaultLinuxStaticDockerImage = "messense/rust-musl-cross@sha256:12d0dd535ef7364bf49cb2608ae7eaf60e40d07834eb4d9160c592422a08d3b3"
   def csLinuxX86_64Url(version: String) = s"https://github.com/coursier/coursier/releases/download/v$version/cs-x86_64-pc-linux"
@@ -318,8 +343,9 @@ object NativeImage {
     dockerParamsOpt: Option[DockerParams],
     dockerWorkingDir: os.Path,
     createManifest: Boolean,
-    workingDir: os.Path
-  ): (Seq[String], Option[os.Path]) = {
+    workingDir: os.Path,
+    useJpms: Option[Boolean]
+  ): (Seq[String], Option[os.Path], Map[String, String]) = {
 
     val graalVmHome = Option(System.getenv("GRAALVM_HOME")).getOrElse {
       import sys.process._
@@ -375,29 +401,41 @@ object NativeImage {
       command(nativeImage, Nil, destDirOpt, destName, finalCp)
     }
 
-    val (finalCommand, tmpDestOpt) =
+    def default = {
+      val extraEnv = useJpms match {
+        case None => Map.empty[String, String]
+        case Some(v) => Map("USE_NATIVE_IMAGE_JAVA_PLATFORM_MODULE_SYSTEM" -> v.toString)
+      }
+      (defaultCommand, None, extraEnv)
+    }
+
+    val (finalCommand, tmpDestOpt, extraEnv) =
       if (Properties.isWin)
         vcvarsOpt match {
           case None =>
             System.err.println(s"Warning: vcvarsall script not found in predefined locations:")
             for (loc <- vcvarsCandidates)
               System.err.println(s"  $loc")
-            (defaultCommand, None)
+            default
           case Some(vcvars) =>
             // chcp 437 sometimes needed, see https://github.com/oracle/graal/issues/2522
             val escapedCommand = defaultCommand.map {
               case s if s.contains(" ") => "\"" + s + "\""
               case s => s
             }
+            val jpmsLine = useJpms match {
+              case None => ""
+              case Some(v) => s"set USE_NATIVE_IMAGE_JAVA_PLATFORM_MODULE_SYSTEM=$v" + System.lineSeparator()
+            }
             val script =
              s"""chcp 437
                 |@call "$vcvars"
                 |if %errorlevel% neq 0 exit /b %errorlevel%
-                |@call ${escapedCommand.mkString(" ")}
+                |${jpmsLine}@call ${escapedCommand.mkString(" ")}
                 |""".stripMargin
             val scriptPath = workingDir / "run-native-image.bat"
             os.write.over(scriptPath, script.getBytes, createFolders = true)
-            (Seq("cmd", "/c", scriptPath.toString), None)
+            (Seq("cmd", "/c", scriptPath.toString), None, Map.empty[String, String])
         }
       else
         dockerParamsOpt match {
@@ -432,12 +470,16 @@ object NativeImage {
               case s if s.contains(" ") || s.contains("$") || s.contains("\"") || s.contains("'") => "'" + s.replace("'", "\\'") + "'"
               case s => s
             }
+            val jpmsLine = useJpms match {
+              case None => ""
+              case Some(v) => s"export USE_NATIVE_IMAGE_JAVA_PLATFORM_MODULE_SYSTEM=$v" + System.lineSeparator()
+            }
             val backTick = "\\"
             val script =
               s"""#!/usr/bin/env bash
                  |set -e
                  |${params.prepareCommand}
-                 |eval "$$(/data/cs java --env --jvm "$jvmId" --jvm-index "$jvmIndex")"
+                 |${jpmsLine}eval "$$(/data/cs java --env --jvm "$jvmId" --jvm-index "$jvmIndex")"
                  |gu install native-image
                  |${escapedCommand.head}""".stripMargin + escapedCommand.drop(1).map("\\\n  " + _).mkString + "\n"
             val scriptPath = dockerWorkingDir / "run-native-image.sh"
@@ -460,12 +502,12 @@ object NativeImage {
               params.imageName,
               "/data/run-native-image.sh"
             )
-            (dockerCmd, Some(dockerWorkingDir / "output"))
+            (dockerCmd, Some(dockerWorkingDir / "output"), Map.empty[String, String])
           case None =>
-            (defaultCommand, None)
+            default
         }
 
-    (finalCommand, tmpDestOpt)
+    (finalCommand, tmpDestOpt, extraEnv)
   }
 
 }
