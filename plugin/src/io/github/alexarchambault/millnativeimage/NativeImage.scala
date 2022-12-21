@@ -2,7 +2,7 @@ package io.github.alexarchambault.millnativeimage
 
 import java.io.File
 import java.nio.charset.Charset
-import java.util.zip.ZipFile
+import java.util.zip.{ZipException, ZipFile}
 
 import mill._
 import mill.scalalib._
@@ -37,13 +37,17 @@ trait NativeImage extends Module {
     */
   def nativeImageEnableScala3Pre32PostProcessing: T[Boolean] = T {
     val cp = nativeImageClassPath().map(_.path)
-    cp.iterator.exists { p =>
+    cp.iterator.filter(os.isFile(_)).exists { p =>
       var zf: ZipFile = null
       try {
         zf = new ZipFile(p.toIO)
         zf.entries().asScala.exists { ent =>
           ent.getName.endsWith(".tasty")
         }
+      }
+      catch {
+        case _: ZipException =>
+          false
       }
       finally {
         if (zf != null)
