@@ -68,7 +68,7 @@ object upload extends ScalaModule with MillNativeImagePublishModule {
   def ivyDeps = super.ivyDeps() ++ Agg(
     ivy"com.lihaoyi::os-lib:0.8.1", // beware, not binary compatible with 0.7.x
     ivy"com.lihaoyi::ujson:1.4.3",
-    ivy"com.softwaremill.sttp.client::core:2.2.9"
+    ivy"com.softwaremill.sttp.client::core:2.3.0"
   )
 }
 
