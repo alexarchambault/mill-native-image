@@ -1,5 +1,5 @@
 import $ivy.`com.lihaoyi::mill-contrib-bloop:$MILL_VERSION`
-import $ivy.`de.tototec::de.tobiasroeser.mill.vcs.version::0.1.1`
+import $ivy.`de.tototec::de.tobiasroeser.mill.vcs.version::0.3.0`
 
 import de.tobiasroeser.mill.vcs.version._
 import mill._, scalalib._, publish._
@@ -76,7 +76,7 @@ def publishSonatype(tasks: mill.main.Tasks[PublishModule.PublishData]) =
   T.command {
     import scala.concurrent.duration._
 
-    val data = define.Task.sequence(tasks.value)()
+    val data = T.sequence(tasks.value)()
     val log = T.ctx().log
 
     val credentials = sys.env("SONATYPE_USERNAME") + ":" + sys.env("SONATYPE_PASSWORD")
