@@ -4,7 +4,7 @@ import $ivy.`de.tototec::de.tobiasroeser.mill.vcs.version::0.3.0`
 import de.tobiasroeser.mill.vcs.version._
 import mill._, scalalib._, publish._
 
-val millVersions = Seq("0.9.12", "0.10.0")
+val millVersions = Seq("0.9.3", "0.10.0")
 val millBinaryVersions = millVersions.map(millBinaryVersion)
 
 def millBinaryVersion(millVersion: String) =
