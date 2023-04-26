@@ -1,4 +1,4 @@
-import mill._, mill.scalalib._, mill.scalalib.scalafmt._
+import mill._, mill.scalalib._
 import $ivy.`io.github.alexarchambault.mill::mill-native-image::0.1.23`
 import io.github.alexarchambault.millnativeimage.NativeImage
 
