@@ -1,0 +1,13 @@
+{
+  "results": [
+    {
+       "name" : "com.domain.Main.HelloWorldSpec/Main application/root route should return text string",
+       "status" : "Success",
+       "durationMillis" : "220",
+       "annotations" : "",
+       "fullyQualifiedClassName" : "com.domain.Main.HelloWorldSpec",
+       "labels" : ["Main application", "root route should return text string"]
+    }
+
+  ]
+}
