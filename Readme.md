@@ -1,6 +1,6 @@
 # Mill-native-image Scala Mill Plugin
 
-This is a [Mill](https://com-lihaoyi.github.io/mill/mill/Intro_to_Mill.html) plugin which allows building executables using GraalVM native-images for your modules.
+This is a [Mill](https://com-lihaoyi.github.io/mill/mill/Intro_to_Mill.html) plugin which allows building executables using [GraalVM native-image](https://www.graalvm.org/latest/reference-manual/native-image/) for your modules.
 
 The plugin allow build both natively in the current host (for example MacOS) or building in a Docker container to create Linux executables on any platform.
 
