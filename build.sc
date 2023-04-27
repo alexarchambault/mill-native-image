@@ -4,7 +4,7 @@ import $ivy.`de.tototec::de.tobiasroeser.mill.vcs.version::0.3.0`
 import de.tobiasroeser.mill.vcs.version._
 import mill._, scalalib._, publish._
 
-val millVersions = Seq("0.9.3", "0.10.0")
+val millVersions = Seq("0.9.12", "0.10.12")
 val millBinaryVersions = millVersions.map(millBinaryVersion)
 
 def millBinaryVersion(millVersion: String) =
@@ -66,8 +66,8 @@ object upload extends ScalaModule with MillNativeImagePublishModule {
   def artifactName = "mill-native-image-upload"
   def scalaVersion = Scala.version
   def ivyDeps = super.ivyDeps() ++ Agg(
-    ivy"com.lihaoyi::os-lib:0.8.1", // beware, not binary compatible with 0.7.x
-    ivy"com.lihaoyi::ujson:1.4.3",
+    ivy"com.lihaoyi::os-lib:0.9.1", // beware, not binary compatible with 0.7.x
+    ivy"com.lihaoyi::ujson:1.4.4",
     ivy"com.softwaremill.sttp.client::core:2.3.0"
   )
 }
