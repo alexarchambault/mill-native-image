@@ -17,6 +17,6 @@ object HelloWorldSpec extends ZIOSpecDefault {
           response.status == Status.Ok,
           body == "Hello World!",
         )
-      },
+      }
     )
 }
