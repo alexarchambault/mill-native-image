@@ -3,14 +3,13 @@ import $ivy.`de.tototec::de.tobiasroeser.mill.vcs.version::0.3.0`
 
 import de.tobiasroeser.mill.vcs.version._
 import mill._, scalalib._, publish._
+import mill.scalalib.api.Util.scalaNativeBinaryVersion
 
-val millVersions = Seq("0.9.12", "0.10.12")
+val millVersions = Seq("0.9.12", "0.10.12", "0.11.0-M8")
 val millBinaryVersions = millVersions.map(millBinaryVersion)
 
-def millBinaryVersion(millVersion: String) =
-  millVersion.split('.').take(2).mkString(".")
-def millVersion(binaryVersion: String) =
-  millVersions.find(v => millBinaryVersion(v) == binaryVersion).get
+def millBinaryVersion(millVersion: String) = scalaNativeBinaryVersion(millVersion)
+def millVersion(binaryVersion:     String) = millVersions.find(v => millBinaryVersion(v) == binaryVersion).get
 
 trait MillNativeImagePublishModule extends PublishModule {
   def pomSettings = PomSettings(
