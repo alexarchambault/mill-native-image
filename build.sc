@@ -1,5 +1,5 @@
 import $ivy.`com.lihaoyi::mill-contrib-bloop:$MILL_VERSION`
-import $ivy.`de.tototec::de.tobiasroeser.mill.vcs.version::0.3.0`
+import $ivy.`de.tototec::de.tobiasroeser.mill.vcs.version::0.3.1`
 
 import de.tobiasroeser.mill.vcs.version._
 import mill._, scalalib._, publish._
