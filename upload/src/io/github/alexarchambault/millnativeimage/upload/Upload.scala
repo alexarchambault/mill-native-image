@@ -20,7 +20,7 @@ object Upload {
   def platformSuffix: String = {
     val arch = sys.props("os.arch").toLowerCase(java.util.Locale.ROOT) match {
       case "amd64" => "x86_64"
-      case other => other
+      case other   => other
     }
     val os =
       if (Properties.isWin) "pc-win32"
@@ -44,10 +44,10 @@ object Upload {
   }
 
   private def releaseId(
-    ghOrg: String,
-    ghProj: String,
+    ghOrg:   String,
+    ghProj:  String,
     ghToken: String,
-    tag: String
+    tag:     String,
   ): Long = {
     val url = uri"https://api.github.com/repos/$ghOrg/$ghProj/releases"
     val resp = quickRequest
@@ -79,9 +79,9 @@ object Upload {
 
   private def currentAssets(
     releaseId: Long,
-    ghOrg: String,
-    ghProj: String,
-    ghToken: String
+    ghOrg:     String,
+    ghProj:    String,
+    ghToken:   String,
   ): Map[String, Long] = {
 
     val resp = quickRequest
@@ -102,23 +102,29 @@ object Upload {
   /**
    * Uploads files as GitHub release assets.
    *
-   * @param uploads List of local files / asset name to be uploaded
-   * @param ghOrg GitHub organization of the release
-   * @param ghProj GitHub project name of the release
-   * @param ghToken GitHub token
-   * @param tag Tag to upload assets to
-   * @param dryRun Whether to run a dry run (printing the actions that would have been done, but not uploading anything)
+   * @param uploads
+   *   List of local files / asset name to be uploaded
+   * @param ghOrg
+   *   GitHub organization of the release
+   * @param ghProj
+   *   GitHub project name of the release
+   * @param ghToken
+   *   GitHub token
+   * @param tag
+   *   Tag to upload assets to
+   * @param dryRun
+   *   Whether to run a dry run (printing the actions that would have been done,
+   *   but not uploading anything)
    */
   def upload(
-    ghOrg: String,
-    ghProj: String,
-    ghToken: String,
-    tag: String,
-    dryRun: Boolean,
-    overwrite: Boolean,
-    printChecksum: Boolean = true
-  )(
-    uploads: (os.Path, String)*
+    ghOrg:         String,
+    ghProj:        String,
+    ghToken:       String,
+    tag:           String,
+    dryRun:        Boolean,
+    overwrite:     Boolean,
+    printChecksum: Boolean = true,
+  )(uploads:       (os.Path, String)*
   ): Unit = {
 
     val releaseId0 = releaseId(ghOrg, ghProj, ghToken, tag)
@@ -149,7 +155,7 @@ object Upload {
             .send()
         }
 
-      val uri = uri"https://uploads.github.com/repos/$ghOrg/$ghProj/releases/$releaseId0/assets?name=$name"
+      val uri          = uri"https://uploads.github.com/repos/$ghOrg/$ghProj/releases/$releaseId0/assets?name=$name"
       val contentType0 = contentType(f0)
       System.err.println(s"Detected content type of $f0: $contentType0")
       if (dryRun)
@@ -167,9 +173,9 @@ object Upload {
   }
 
   private def checksum(is: InputStream, alg: String, len: Int): String = {
-    val md     = MessageDigest.getInstance(alg)
+    val md = MessageDigest.getInstance(alg)
 
-    val b = Array.ofDim[Byte](16 * 1024)
+    val b    = Array.ofDim[Byte](16 * 1024)
     var read = -1
     while ({
       read = is.read(b)
@@ -191,8 +197,7 @@ object Upload {
     try {
       is = os.read.inputStream(f)
       checksum(is, alg, len)
-    }
-    finally {
+    } finally {
       if (is != null)
         is.close()
     }
@@ -212,7 +217,7 @@ object Upload {
   }
 
   private def readInto(is: InputStream, os: OutputStream): Unit = {
-    val buf = Array.ofDim[Byte](1024 * 1024)
+    val buf  = Array.ofDim[Byte](1024 * 1024)
     var read = -1
     while ({
       read = is.read(buf)
@@ -223,9 +228,9 @@ object Upload {
   private def writeInZip(name: String, file: os.Path, zip: os.Path): Unit = {
     os.makeDir.all(zip / os.up)
 
-    var fis: InputStream = null
+    var fis: InputStream      = null
     var fos: FileOutputStream = null
-    var zos: ZipOutputStream = null
+    var zos: ZipOutputStream  = null
 
     try {
       fis = os.read.inputStream(file)
@@ -249,11 +254,11 @@ object Upload {
 
   def copyLauncher(
     nativeLauncher: os.Path,
-    directory: String,
-    name: String,
-    compress: Boolean,
-    suffix: String = "",
-    printChecksums: Boolean = true
+    directory:      String,
+    name:           String,
+    compress:       Boolean,
+    suffix:         String = "",
+    printChecksums: Boolean = true,
   ): os.Path = {
 
     if (printChecksums)
@@ -270,8 +275,8 @@ object Upload {
         os.copy(nativeLauncher, dest0, createFolders = true, replaceExisting = true)
         if (compress) {
           val compressedDest = path / s"$name-$platformSuffix$suffix.gz"
-          var fis: FileInputStream = null
-          var fos: FileOutputStream = null
+          var fis:  FileInputStream  = null
+          var fos:  FileOutputStream = null
           var gzos: GZIPOutputStream = null
           try {
             fis = new FileInputStream(dest0.toIO)
