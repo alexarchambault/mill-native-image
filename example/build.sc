@@ -5,9 +5,9 @@ import io.github.alexarchambault.millnativeimage.NativeImage
 object hello extends ScalaModule with NativeImage {
   def scalaVersion = "3.3.0-RC4"
   def ivyDeps = Agg(
-      ivy"dev.zio::zio:2.0.13",
-      ivy"dev.zio::zio-http:3.0.0-RC1",
-    )
+    ivy"dev.zio::zio:2.0.13",
+    ivy"dev.zio::zio-http:3.0.0-RC1",
+  )
   def nativeImageName         = "hello"
   def nativeImageMainClass    = "com.domain.Main.MainApp"
   def nativeImageClassPath    = runClasspath()
@@ -55,7 +55,7 @@ object hello extends ScalaModule with NativeImage {
                              |export LC_ALL=en_US.UTF-8""".stripMargin,
           csUrl = s"https://github.com/coursier/coursier/releases/download/v2.1.2/cs-x86_64-pc-linux.gz",
           extraNativeImageArgs = Nil,
-        ),
+        )
       )
     } else { Option.empty[NativeImage.DockerParams] }
   }

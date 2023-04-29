@@ -5,7 +5,7 @@ import zio.http.*
 import zio.http.Method
 
 object MainApp extends ZIOAppDefault {
-  val port   = 8080
+  val port        = 8080
   val configLayer = ZLayer.succeed(Server.Config.default.port(port))
 
   override val run =
