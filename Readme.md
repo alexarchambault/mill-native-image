@@ -27,7 +27,7 @@ object hello extends ScalaModule with NativeImage {
   def ivyDeps = ... // Your deps here
 
   def nativeImageName         = "hello"
-  def nativeImageMainClass    = "Main"
+  def nativeImageMainClass    = "com.domain.Main.MainApp"
   def nativeImageClassPath    = runClasspath()
   def nativeImageGraalVmJvmId = "graalvm-java17:22.3.1"
   def nativeImageOptions = Seq(
