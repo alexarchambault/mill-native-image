@@ -28,6 +28,7 @@ object hello extends ScalaModule with NativeImage {
 
   def nativeImageName         = "hello"
   def nativeImageMainClass    = "Main"
+  def nativeImageClassPath    = runClasspath()
   def nativeImageGraalVmJvmId = "graalvm-java17:22.3.1"
   def nativeImageOptions = Seq(
     "--no-fallback",
