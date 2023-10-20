@@ -5,7 +5,7 @@ import de.tobiasroeser.mill.vcs.version._
 import mill._, scalalib._, publish._
 import mill.scalalib.api.Util.scalaNativeBinaryVersion
 
-val millVersions       = Seq("0.9.12", "0.10.12", "0.11.0")
+val millVersions       = Seq("0.9.12", "0.10.12", "0.11.5")
 val millBinaryVersions = millVersions.map(millBinaryVersion)
 
 def millBinaryVersion(millVersion: String) = scalaNativeBinaryVersion(millVersion)
@@ -47,7 +47,7 @@ trait MillNativeImagePublishModule extends PublishModule {
 }
 
 object Scala {
-  def version = "2.13.6"
+  def version = "2.13.12"
 }
 
 object plugin extends Cross[PluginModule](millBinaryVersions: _*)
@@ -57,7 +57,7 @@ class PluginModule(millBinaryVersion: String)
   def artifactName   = s"mill-native-image_mill$millBinaryVersion"
   def millSourcePath = super.millSourcePath / os.up
   def scalaVersion   = Scala.version
-  def ivyDeps = super.ivyDeps() ++ Agg(
+  def compileIvyDeps = super.compileIvyDeps() ++ Agg(
     ivy"com.lihaoyi::mill-scalalib:${millVersion(millBinaryVersion)}"
   )
 }
@@ -65,10 +65,12 @@ class PluginModule(millBinaryVersion: String)
 object upload extends ScalaModule with MillNativeImagePublishModule {
   def artifactName = "mill-native-image-upload"
   def scalaVersion = Scala.version
-  def ivyDeps = super.ivyDeps() ++ Agg(
+  def compileIvyDeps = super.compileIvyDeps() ++ Agg(
     ivy"com.lihaoyi::os-lib:0.9.1", // beware, not binary compatible with 0.7.x
     ivy"com.lihaoyi::ujson:1.4.4",
-    ivy"com.softwaremill.sttp.client::core:2.3.0",
+  )
+  def ivyDeps = super.ivyDeps() ++ Agg(
+    ivy"com.softwaremill.sttp.client::core:2.3.0"
   )
 }
 
