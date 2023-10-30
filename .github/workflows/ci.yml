@@ -23,7 +23,6 @@ jobs:
       run: ./mill __.compile
 
   publish:
-    needs: test
     if: github.event_name == 'push' && github.repository == 'alexarchambault/mill-native-image'
     runs-on: ubuntu-latest
     steps:
