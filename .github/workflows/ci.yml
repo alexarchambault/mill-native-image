@@ -11,7 +11,7 @@ jobs:
   test:
     runs-on: ubuntu-latest
     steps:
-    - uses: actions/checkout@v3
+    - uses: actions/checkout@v4
       with:
         fetch-depth: 0
         submodules: true
@@ -23,11 +23,10 @@ jobs:
       run: ./mill __.compile
 
   publish:
-    needs: test
     if: github.event_name == 'push' && github.repository == 'alexarchambault/mill-native-image'
     runs-on: ubuntu-latest
     steps:
-    - uses: actions/checkout@v3
+    - uses: actions/checkout@v4
       with:
         fetch-depth: 0
         submodules: true
@@ -37,11 +36,11 @@ jobs:
         jvm: 8
     - run: .github/scripts/gpg-setup.sh
       env:
-        PGP_SECRET: ${{ secrets.PGP_SECRET }}
+        PGP_SECRET: ${{ secrets.PUBLISH_SECRET_KEY }}
     - name: Release
       run: |
         ./mill publishSonatype __.publishArtifacts
       env:
-        PGP_PASSPHRASE: ${{ secrets.PGP_PASSPHRASE }}
+        PGP_PASSPHRASE: ${{ secrets.PUBLISH_SECRET_KEY_PASSWORD }}
         SONATYPE_PASSWORD: ${{ secrets.SONATYPE_PASSWORD }}
         SONATYPE_USERNAME: ${{ secrets.SONATYPE_USERNAME }}

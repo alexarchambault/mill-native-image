@@ -1,11 +1,11 @@
 import $ivy.`com.lihaoyi::mill-contrib-bloop:$MILL_VERSION`
-import $ivy.`de.tototec::de.tobiasroeser.mill.vcs.version::0.3.1`
+import $ivy.`de.tototec::de.tobiasroeser.mill.vcs.version::0.4.0`
 
 import de.tobiasroeser.mill.vcs.version._
 import mill._, scalalib._, publish._
 import mill.scalalib.api.Util.scalaNativeBinaryVersion
 
-val millVersions       = Seq("0.9.12", "0.10.12", "0.11.0-M8")
+val millVersions       = Seq("0.9.12", "0.10.12", "0.11.0") // scala-steward:off
 val millBinaryVersions = millVersions.map(millBinaryVersion)
 
 def millBinaryVersion(millVersion: String) = scalaNativeBinaryVersion(millVersion)
@@ -47,7 +47,7 @@ trait MillNativeImagePublishModule extends PublishModule {
 }
 
 object Scala {
-  def version = "2.13.6"
+  def version = "2.13.12"
 }
 
 object plugin extends Cross[PluginModule](millBinaryVersions: _*)
@@ -57,7 +57,7 @@ class PluginModule(millBinaryVersion: String)
   def artifactName   = s"mill-native-image_mill$millBinaryVersion"
   def millSourcePath = super.millSourcePath / os.up
   def scalaVersion   = Scala.version
-  def ivyDeps = super.ivyDeps() ++ Agg(
+  def compileIvyDeps = super.compileIvyDeps() ++ Agg(
     ivy"com.lihaoyi::mill-scalalib:${millVersion(millBinaryVersion)}"
   )
 }
@@ -65,10 +65,12 @@ class PluginModule(millBinaryVersion: String)
 object upload extends ScalaModule with MillNativeImagePublishModule {
   def artifactName = "mill-native-image-upload"
   def scalaVersion = Scala.version
-  def ivyDeps = super.ivyDeps() ++ Agg(
+  def compileIvyDeps = super.compileIvyDeps() ++ Agg(
     ivy"com.lihaoyi::os-lib:0.9.1", // beware, not binary compatible with 0.7.x
-    ivy"com.lihaoyi::ujson:1.6.0",
-    ivy"com.softwaremill.sttp.client::core:2.3.0",
+    ivy"com.lihaoyi::ujson:1.6.0"
+  )
+  def ivyDeps = super.ivyDeps() ++ Agg(
+    ivy"com.softwaremill.sttp.client::core:2.3.0"
   )
 }
 
@@ -98,8 +100,8 @@ def publishSonatype(tasks: mill.main.Tasks[PublishModule.PublishData]) =
       set.head
     }
     val publisher = new scalalib.publish.SonatypePublisher(
-      uri = "https://oss.sonatype.org/service/local",
-      snapshotUri = "https://oss.sonatype.org/content/repositories/snapshots",
+      uri = "https://s01.oss.sonatype.org/service/local",
+      snapshotUri = "https://s01.oss.sonatype.org/content/repositories/snapshots",
       credentials = credentials,
       signed = true,
       gpgArgs = Seq(
