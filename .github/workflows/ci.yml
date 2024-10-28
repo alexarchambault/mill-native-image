@@ -39,7 +39,7 @@ jobs:
         PGP_SECRET: ${{ secrets.PUBLISH_SECRET_KEY }}
     - name: Release
       run: |
-        ./mill publishSonatype __.publishArtifacts
+        ./mill publishSonatype --tasks __.publishArtifacts
       env:
         PGP_PASSPHRASE: ${{ secrets.PUBLISH_SECRET_KEY_PASSWORD }}
         SONATYPE_PASSWORD: ${{ secrets.SONATYPE_PASSWORD }}
