@@ -44,7 +44,7 @@ trait NativeImage extends Module {
   }
 
   def nativeImageScript(imageDest: String = "") = T.command {
-    val imageDestOpt = if (imageDest.isEmpty) None else Some(os.Path(imageDest, os.pwd))
+    val imageDestOpt = if (imageDest.isEmpty) None else Some(os.Path(imageDest, T.workspace))
     val cp           = nativeImageClassPath().map(_.path)
     val mainClass0   = nativeImageMainClass()
     val nativeImageDest = {
@@ -150,8 +150,8 @@ trait NativeImage extends Module {
   }
 
   def writeNativeImageScript(scriptDest: String, imageDest: String) = {
-    val scriptDest0 = os.Path(scriptDest, os.pwd)
     T.command {
+      val scriptDest0 = os.Path(scriptDest, T.workspace)
       val script = nativeImageScript(imageDest)().path
       os.copy(script, scriptDest0, replaceExisting = true, createFolders = true)
     }
@@ -166,7 +166,7 @@ trait NativeImage extends Module {
         val actualDest = T.dest / (nativeImageName() + platformExtension)
 
         if (os.isFile(actualDest))
-          T.log.info(s"Warning: not re-computing ${actualDest.relativeTo(os.pwd)}, delete it if you think it's stale")
+          T.log.info(s"Warning: not re-computing ${actualDest.relativeTo(T.workspace)}, delete it if you think it's stale")
         else {
           val (command, tmpDestOpt, extraEnv) = generateNativeImage(
             nativeImageCsCommand(),
@@ -315,13 +315,18 @@ object NativeImage {
     }
   }
 
-  def vcvarsOpt: Option[os.Path] =
+  def vcvarsOpt: Option[os.Path] = {
+    val workspace = sys.env.get("MILL_WORKSPACE_ROOT") match {
+      case Some(dir) => os.Path(dir)
+      case None => os.pwd
+    }
     vcvarsCandidates
       .iterator
-      .map(os.Path(_, os.pwd))
+      .map(os.Path(_, workspace))
       .filter(os.exists(_))
       .toStream
       .headOption
+  }
 
   final case class DockerParams(
     imageName:            String,
