@@ -3,9 +3,9 @@ import $ivy.`de.tototec::de.tobiasroeser.mill.vcs.version::0.4.0`
 
 import de.tobiasroeser.mill.vcs.version._
 import mill._, scalalib._, publish._
-import mill.scalalib.api.Util.scalaNativeBinaryVersion
+import mill.scalalib.api.ZincWorkerUtil.scalaNativeBinaryVersion
 
-val millVersions       = Seq("0.10.12", "0.11.0") // scala-steward:off
+val millVersions       = Seq("0.10.12", "0.11.0", "0.12.0") // scala-steward:off
 val millBinaryVersions = millVersions.map(millBinaryVersion)
 
 def millBinaryVersion(millVersion: String) = scalaNativeBinaryVersion(millVersion)
@@ -50,10 +50,9 @@ object Scala {
   def version = "2.13.12"
 }
 
-object plugin extends Cross[PluginModule](millBinaryVersions: _*)
-class PluginModule(millBinaryVersion: String)
-  extends ScalaModule
-  with MillNativeImagePublishModule {
+object plugin extends Cross[PluginModule](millBinaryVersions)
+trait PluginModule extends Cross.Module[String] with ScalaModule with MillNativeImagePublishModule {
+  def millBinaryVersion: String = crossValue
   def artifactName   = s"mill-native-image_mill$millBinaryVersion"
   def millSourcePath = super.millSourcePath / os.up
   def scalaVersion   = Scala.version
@@ -118,6 +117,8 @@ def publishSonatype(tasks: mill.main.Tasks[PublishModule.PublishData]) =
       readTimeout = timeout.toMillis.toInt,
       connectTimeout = timeout.toMillis.toInt,
       log = log,
+      workspace = T.workspace,
+      env = sys.env,
       awaitTimeout = timeout.toMillis.toInt,
       stagingRelease = isRelease,
     )
