@@ -5,7 +5,7 @@ import de.tobiasroeser.mill.vcs.version._
 import mill._, scalalib._, publish._
 import mill.scalalib.api.ZincWorkerUtil.scalaNativeBinaryVersion
 
-val millVersions       = Seq("0.10.12", "0.11.0") // scala-steward:off
+val millVersions       = Seq("0.10.12", "0.11.0", "0.12.0") // scala-steward:off
 val millBinaryVersions = millVersions.map(millBinaryVersion)
 
 def millBinaryVersion(millVersion: String) = scalaNativeBinaryVersion(millVersion)
