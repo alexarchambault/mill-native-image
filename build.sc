@@ -54,7 +54,6 @@ object plugin extends Cross[PluginModule](millBinaryVersions)
 trait PluginModule extends Cross.Module[String] with ScalaModule with MillNativeImagePublishModule {
   def millBinaryVersion: String = crossValue
   def artifactName   = s"mill-native-image_mill$millBinaryVersion"
-  def millSourcePath = super.millSourcePath / os.up
   def scalaVersion   = Scala.version
   def compileIvyDeps = super.compileIvyDeps() ++ Agg(
     ivy"com.lihaoyi::mill-scalalib:${millVersion(millBinaryVersion)}"
