@@ -4,6 +4,7 @@ import java.io.File
 import java.nio.charset.Charset
 
 import mill._
+import mill.api.WorkspaceRoot
 
 import scala.util.Properties
 
@@ -316,10 +317,7 @@ object NativeImage {
   }
 
   def vcvarsOpt: Option[os.Path] = {
-    val workspace = sys.env.get("MILL_WORKSPACE_ROOT") match {
-      case Some(dir) => os.Path(dir)
-      case None => os.pwd
-    }
+    val workspace = WorkspaceRoot.workspaceRoot.getOrElse(os.pwd)
     vcvarsCandidates
       .iterator
       .map(os.Path(_, workspace))
