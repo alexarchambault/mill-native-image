@@ -259,12 +259,13 @@ object Upload {
     compress:       Boolean,
     suffix:         String = "",
     printChecksums: Boolean = true,
+    wd:             os.Path = os.pwd,
   ): os.Path = {
 
     if (printChecksums)
       Upload.printChecksums(nativeLauncher)
 
-    val path = os.Path(directory, os.pwd)
+    val path = os.Path(directory, wd)
     val dest =
       if (Properties.isWin && compress) {
         val dest0 = path / s"$name-$platformSuffix$suffix.zip"
