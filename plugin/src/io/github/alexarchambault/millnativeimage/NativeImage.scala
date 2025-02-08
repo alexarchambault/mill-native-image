@@ -149,13 +149,12 @@ trait NativeImage extends Module {
     PathRef(scriptPath)
   }
 
-  def writeNativeImageScript(scriptDest: String, imageDest: String) = {
+  def writeNativeImageScript(scriptDest: String, imageDest: String) =
     T.command {
       val scriptDest0 = os.Path(scriptDest, T.workspace)
-      val script = nativeImageScript(imageDest)().path
+      val script      = nativeImageScript(imageDest)().path
       os.copy(script, scriptDest0, replaceExisting = true, createFolders = true)
     }
-  }
 
   def nativeImage =
     if (nativeImagePersist)
@@ -166,7 +165,9 @@ trait NativeImage extends Module {
         val actualDest = T.dest / (nativeImageName() + platformExtension)
 
         if (os.isFile(actualDest))
-          T.log.info(s"Warning: not re-computing ${actualDest.relativeTo(T.workspace)}, delete it if you think it's stale")
+          T.log.info(
+            s"Warning: not re-computing ${actualDest.relativeTo(T.workspace)}, delete it if you think it's stale"
+          )
         else {
           val (command, tmpDestOpt, extraEnv) = generateNativeImage(
             nativeImageCsCommand(),
@@ -318,7 +319,7 @@ object NativeImage {
   def vcvarsOpt: Option[os.Path] = {
     val workspace = sys.env.get("MILL_WORKSPACE_ROOT") match {
       case Some(dir) => os.Path(dir)
-      case None => os.pwd
+      case None      => os.pwd
     }
     vcvarsCandidates
       .iterator
