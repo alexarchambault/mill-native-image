@@ -493,7 +493,7 @@ object NativeImage {
                  |set -e
                  |${params.prepareCommand}
                  |${jpmsLine}eval "$$(/data/cs java --env --jvm "$jvmId" --jvm-index "$jvmIndex")"
-                 |gu install native-image
+                 |native-image --help >/dev/null || gu install native-image
                  |${escapedCommand.head}""".stripMargin + escapedCommand.drop(1).map("\\\n  " + _).mkString + "\n"
             val scriptPath = dockerWorkingDir / "run-native-image.sh"
             os.write.over(scriptPath, script, createFolders = true)
