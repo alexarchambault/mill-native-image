@@ -252,6 +252,7 @@ object Upload {
     }
   }
 
+  @deprecated("Use copyLauncher0 instead", "0.1.31")
   def copyLauncher(
     nativeLauncher: os.Path,
     directory:      String,
@@ -259,13 +260,32 @@ object Upload {
     compress:       Boolean,
     suffix:         String = "",
     printChecksums: Boolean = true,
-    wd:             os.Path = os.pwd,
+    wd:             os.Path = os.pwd, // issue with newer Mill versions, where this isn't the workspace
+  ): os.Path =
+    copyLauncher0(
+      nativeLauncher,
+      directory,
+      name,
+      compress,
+      wd,
+      suffix,
+      printChecksums,
+    )
+
+  def copyLauncher0(
+    nativeLauncher: os.Path,
+    directory:      String,
+    name:           String,
+    compress:       Boolean,
+    workspace:      os.Path,
+    suffix:         String = "",
+    printChecksums: Boolean = true,
   ): os.Path = {
 
     if (printChecksums)
       Upload.printChecksums(nativeLauncher)
 
-    val path = os.Path(directory, wd)
+    val path = os.Path(directory, workspace)
     val dest =
       if (Properties.isWin && compress) {
         val dest0 = path / s"$name-$platformSuffix$suffix.zip"
