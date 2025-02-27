@@ -74,6 +74,7 @@ trait NativeImage extends Module {
       nativeImageUseManifest(),
       T.dest / "working-dir",
       nativeImageUseJpms(),
+      workspace = T.workspace,
     )
 
     val scriptName = if (Properties.isWin) "generate.bat" else "generate.sh"
@@ -181,6 +182,7 @@ trait NativeImage extends Module {
             nativeImageUseManifest(),
             T.dest / "working-dir",
             nativeImageUseJpms(),
+            workspace = T.workspace,
           )
 
           val res = os.proc(command.map(x => x: os.Shellable): _*).call(
@@ -215,6 +217,7 @@ trait NativeImage extends Module {
           nativeImageUseManifest(),
           T.dest / "working-dir",
           nativeImageUseJpms(),
+          workspace = T.workspace,
         )
 
         val res = os.proc(command.map(x => x: os.Shellable): _*).call(
@@ -316,18 +319,17 @@ object NativeImage {
     }
   }
 
-  def vcvarsOpt: Option[os.Path] = {
-    val workspace = sys.env.get("MILL_WORKSPACE_ROOT") match {
-      case Some(dir) => os.Path(dir)
-      case None      => os.pwd
-    }
+  @deprecated("Use vcvarsOpt0 instead", "0.1.31")
+  def vcvarsOpt: Option[os.Path] =
+    vcvarsOpt0(os.pwd) // FIXME os.pwd isn't the workspace anymore with recent Mill versions
+
+  def vcvarsOpt0(workspace: os.Path): Option[os.Path] =
     vcvarsCandidates
       .iterator
       .map(os.Path(_, workspace))
       .filter(os.exists(_))
       .toStream
       .headOption
-  }
 
   final case class DockerParams(
     imageName:            String,
@@ -352,6 +354,7 @@ object NativeImage {
     createManifest:     Boolean,
     workingDir:         os.Path,
     useJpms:            Option[Boolean],
+    workspace:          os.Path,
   ): (Seq[String], Option[os.Path], Map[String, String]) = {
 
     val graalVmHome = Option(System.getenv("GRAALVM_HOME")).getOrElse {
@@ -408,7 +411,7 @@ object NativeImage {
     }
 
     def defaultCommand = {
-      val relDest    = dest.relativeTo(os.pwd)
+      val relDest    = dest.relativeTo(workspace)
       val destDirOpt = if (relDest.segments.length > 1) Some((relDest / os.up).toString) else None
       val destName   = relDest.last
       command(nativeImage, Nil, destDirOpt, destName, finalCp)
@@ -424,7 +427,7 @@ object NativeImage {
 
     val (finalCommand, tmpDestOpt, extraEnv) =
       if (Properties.isWin)
-        vcvarsOpt match {
+        vcvarsOpt0(workspace) match {
           case None =>
             System.err.println(s"Warning: vcvarsall script not found in predefined locations:")
             for (loc <- vcvarsCandidates)
