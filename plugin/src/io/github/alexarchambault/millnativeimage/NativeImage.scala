@@ -189,6 +189,7 @@ trait NativeImage extends Module {
             stdin = os.Inherit,
             stdout = os.Inherit,
             env = extraEnv,
+            cwd = T.workspace,
           )
           if (res.exitCode == 0)
             tmpDestOpt.foreach(tmpDest => os.copy(tmpDest, dest))
@@ -224,6 +225,7 @@ trait NativeImage extends Module {
           stdin = os.Inherit,
           stdout = os.Inherit,
           env = extraEnv,
+          cwd = T.workspace,
         )
         if (res.exitCode == 0)
           tmpDestOpt.foreach(tmpDest => os.copy(tmpDest, dest))
