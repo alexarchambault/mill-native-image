@@ -43,7 +43,7 @@ trait NativeImage extends Module {
     Properties.isWin && nativeImageDockerParams().isEmpty
   }
 
-  def nativeImageScript(imageDest: String = "") = T.command {
+  def nativeImageScript(imageDest: String = "") = Task.Command {
     val imageDestOpt    = if (imageDest.isEmpty) None else Some(os.Path(imageDest, T.workspace))
     val cp              = nativeImageClassPath().map(_.path)
     val mainClass0      = nativeImageMainClass()
@@ -151,7 +151,7 @@ trait NativeImage extends Module {
   }
 
   def writeNativeImageScript(scriptDest: String, imageDest: String) =
-    T.command {
+    Task.Command {
       val scriptDest0 = os.Path(scriptDest, T.workspace)
       val script      = nativeImageScript(imageDest)().path
       os.copy(script, scriptDest0, replaceExisting = true, createFolders = true)
@@ -159,7 +159,7 @@ trait NativeImage extends Module {
 
   def nativeImage =
     if (nativeImagePersist)
-      T.persistent {
+      Task(persistent = true) {
         val cp         = nativeImageClassPath().map(_.path)
         val mainClass0 = nativeImageMainClass()
         val dest       = T.dest / nativeImageName()
@@ -185,7 +185,7 @@ trait NativeImage extends Module {
             workspace = T.workspace,
           )
 
-          val res = os.proc(command.map(x => x: os.Shellable): _*).call(
+          val res = os.proc(command.map(x => x: os.Shellable) *).call(
             stdin = os.Inherit,
             stdout = os.Inherit,
             env = extraEnv,
@@ -221,7 +221,7 @@ trait NativeImage extends Module {
           workspace = T.workspace,
         )
 
-        val res = os.proc(command.map(x => x: os.Shellable): _*).call(
+        val res = os.proc(command.map(x => x: os.Shellable) *).call(
           stdin = os.Inherit,
           stdout = os.Inherit,
           env = extraEnv,
@@ -503,7 +503,7 @@ object NativeImage {
             val scriptPath = dockerWorkingDir / "run-native-image.sh"
             os.write.over(scriptPath, script, createFolders = true)
             os.perms.set(scriptPath, "rwxr-xr-x")
-            val csPath = os.Path(os.proc(csCommand, "get", params.csUrl).call().out.text.trim)
+            val csPath = os.Path(os.proc(csCommand, "get", params.csUrl).call().out.trim())
             if (csPath.last.endsWith(".gz")) {
               os.copy.over(csPath, dockerWorkingDir / "cs.gz")
               os.proc("gzip", "-df", dockerWorkingDir / "cs.gz").call(stdout = os.Inherit)
