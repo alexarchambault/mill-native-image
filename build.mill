@@ -1,0 +1,64 @@
+//| mill-version: 1.0.0
+
+import mill.api.BuildCtx
+import mill._, scalalib._, publish._
+import mill.javalib.api.JvmWorkerUtil.scalaNativeBinaryVersion
+
+val millVersions = Seq(
+  "0.12.14",
+  "1.0.0",
+)
+val millBinaryVersions = millVersions.map(millBinaryVersion)
+
+def millBinaryVersion(millVersion: String) = scalaNativeBinaryVersion(millVersion)
+def millVersion(binaryVersion:     String) = millVersions.find(v => millBinaryVersion(v) == binaryVersion).get
+
+trait MillNativeImagePublishModule extends PublishModule {
+  def pomSettings = PomSettings(
+    description = artifactName(),
+    organization = "io.github.alexarchambault.mill",
+    url = s"https://github.com/alexarchambault/mill-native-image",
+    licenses = Seq(License.`Apache-2.0`),
+    versionControl = VersionControl.github("alexarchambault", "mill-native-image"),
+    developers = Seq(
+      Developer("alexarchambault", "Alex Archambault", "https://github.com/alexarchambault")
+    ),
+  )
+  def publishVersion = "0.1.32-SNAPSHOT"
+}
+
+object Scala {
+  def version  = "2.13.12"
+  def version3 = "3.7.1"
+}
+
+object plugin      extends Cross[PluginModule](millBinaryVersions)
+trait PluginModule extends Cross.Module[String] with ScalaModule with MillNativeImagePublishModule {
+  def millBinaryVersion: String = crossValue
+  def artifactName = s"mill-native-image_mill$millBinaryVersion"
+  def scalaVersion =
+    if (millBinaryVersion == "0.12")
+      Scala.version
+    else
+      Scala.version3
+  def scalacOptions  = super.scalacOptions() ++ Seq("-deprecation")
+  def compileMvnDeps = super.compileMvnDeps() ++ Seq(
+    if (millBinaryVersion == "0.12")
+      mvn"com.lihaoyi::mill-scalalib:${millVersion(millBinaryVersion)}"
+    else
+      mvn"com.lihaoyi::mill-libs-scalalib:${millVersion(millBinaryVersion)}"
+  )
+}
+
+object upload      extends Cross[UploadModule](Scala.version, Scala.version3)
+trait UploadModule extends CrossScalaModule with MillNativeImagePublishModule {
+  def artifactName   = "mill-native-image-upload"
+  def scalacOptions  = super.scalacOptions() ++ Seq("-deprecation")
+  def compileMvnDeps = super.compileMvnDeps() ++ Seq(
+    mvn"com.lihaoyi::os-lib:0.11.4", // beware, not binary compatible with 0.7.x
+    mvn"com.lihaoyi::ujson:4.2.1",
+  )
+  def mvnDeps = super.mvnDeps() ++ Seq(
+    mvn"com.softwaremill.sttp.client4::core:4.0.9"
+  )
+}

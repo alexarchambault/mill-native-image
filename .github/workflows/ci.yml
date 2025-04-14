@@ -34,13 +34,13 @@ jobs:
     - uses: coursier/setup-action@v1
       with:
         jvm: 11
-    - run: .github/scripts/gpg-setup.sh
-      env:
-        PGP_SECRET: ${{ secrets.PUBLISH_SECRET_KEY }}
     - name: Release
       run: |
-        ./mill publishSonatype --tasks __.publishArtifacts
+        ./mill -i mill.scalalib.SonatypeCentralPublishModule/ \
+            --username "$SONATYPE_USERNAME" \
+            --password "$SONATYPE_PASSWORD"
       env:
-        PGP_PASSPHRASE: ${{ secrets.PUBLISH_SECRET_KEY_PASSWORD }}
+        MILL_PGP_SECRET_BASE64: ${{ secrets.PUBLISH_SECRET_KEY }}
+        MILL_PGP_PASSPHRASE: ${{ secrets.PUBLISH_SECRET_KEY_PASSWORD }}
         SONATYPE_PASSWORD: ${{ secrets.SONATYPE_PASSWORD }}
         SONATYPE_USERNAME: ${{ secrets.SONATYPE_USERNAME }}
