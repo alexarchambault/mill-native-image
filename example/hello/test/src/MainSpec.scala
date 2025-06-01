@@ -7,7 +7,7 @@ import zio.test.*
 object HelloWorldSpec extends ZIOSpecDefault {
 
   val rootroute = RootRoute()
-  def spec =
+  def spec      =
     suite("Main application")(
       test("root route should return text string") {
         for {
