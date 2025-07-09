@@ -10,7 +10,7 @@ import scala.util.Properties
 trait NativeImage extends Module {
   import NativeImage._
 
-  def nativeImagePersist: Boolean = false
+  def nativeImagePersist: Boolean            = false
   def nativeImageUseJpms: T[Option[Boolean]] =
     T(None)
 
@@ -44,9 +44,9 @@ trait NativeImage extends Module {
   }
 
   def nativeImageScript(imageDest: String = "") = T.command {
-    val imageDestOpt = if (imageDest.isEmpty) None else Some(os.Path(imageDest, T.workspace))
-    val cp           = nativeImageClassPath().map(_.path)
-    val mainClass0   = nativeImageMainClass()
+    val imageDestOpt    = if (imageDest.isEmpty) None else Some(os.Path(imageDest, T.workspace))
+    val cp              = nativeImageClassPath().map(_.path)
+    val mainClass0      = nativeImageMainClass()
     val nativeImageDest = {
       val dir = T.dest
       val str = dir.toString
@@ -81,7 +81,7 @@ trait NativeImage extends Module {
     val scriptPath = T.dest / scriptName
 
     def bashScript = {
-      val q = "\'"
+      val q                                                = "\'"
       def extra(from: os.Path, to: os.Path, move: Boolean) =
         System.lineSeparator() +
           s"mkdir -p $q${to / os.up}$q" +
@@ -112,7 +112,7 @@ trait NativeImage extends Module {
     }
 
     def batScript = {
-      val q = "\""
+      val q                                                = "\""
       def extra(from: os.Path, to: os.Path, move: Boolean) =
         System.lineSeparator() +
           s"md $q${to / os.up}$q" +
@@ -308,8 +308,8 @@ object NativeImage {
   // should be the default index in the upcoming coursier release (> 2.0.16)
   def jvmIndex = "https://github.com/coursier/jvm-index/raw/master/index.json"
 
-  private def vcVersions = Seq("2022", "2019", "2017")
-  private def vcEditions = Seq("Enterprise", "Community", "BuildTools")
+  private def vcVersions    = Seq("2022", "2019", "2017")
+  private def vcEditions    = Seq("Enterprise", "Community", "BuildTools")
   lazy val vcvarsCandidates = Option(System.getenv("VCVARSALL")) ++ {
     for {
       isX86   <- Seq(false, true)
@@ -482,7 +482,7 @@ object NativeImage {
               os.copy(f, dest)
               s"/data/cp/$name"
             }
-            val cp = copiedCp.mkString(File.pathSeparator)
+            val cp             = copiedCp.mkString(File.pathSeparator)
             val escapedCommand = command("native-image", params.extraNativeImageArgs, Some("/data"), "output", cp).map {
               case s if s.contains(" ") || s.contains("$") || s.contains("\"") || s.contains("'") =>
                 "'" + s.replace("'", "\\'") + "'"
@@ -493,7 +493,7 @@ object NativeImage {
               case Some(v) => s"export USE_NATIVE_IMAGE_JAVA_PLATFORM_MODULE_SYSTEM=$v" + System.lineSeparator()
             }
             val backTick = "\\"
-            val script =
+            val script   =
               s"""#!/usr/bin/env bash
                  |set -e
                  |${params.prepareCommand}
@@ -510,7 +510,7 @@ object NativeImage {
             } else
               os.copy.over(csPath, dockerWorkingDir / "cs")
             os.perms.set(dockerWorkingDir / "cs", "rwxr-xr-x")
-            val termOpt = if (System.console() == null) Nil else Seq("-t")
+            val termOpt   = if (System.console() == null) Nil else Seq("-t")
             val dockerCmd = Seq("docker", "run") ++ termOpt ++ Seq(
               "--rm",
               "-v",

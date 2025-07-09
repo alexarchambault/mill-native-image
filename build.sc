@@ -50,19 +50,19 @@ object Scala {
   def version = "2.13.12"
 }
 
-object plugin extends Cross[PluginModule](millBinaryVersions)
+object plugin      extends Cross[PluginModule](millBinaryVersions)
 trait PluginModule extends Cross.Module[String] with ScalaModule with MillNativeImagePublishModule {
   def millBinaryVersion: String = crossValue
-  def artifactName = s"mill-native-image_mill$millBinaryVersion"
-  def scalaVersion = Scala.version
+  def artifactName   = s"mill-native-image_mill$millBinaryVersion"
+  def scalaVersion   = Scala.version
   def compileIvyDeps = super.compileIvyDeps() ++ Agg(
     ivy"com.lihaoyi::mill-scalalib:${millVersion(millBinaryVersion)}"
   )
 }
 
 object upload extends ScalaModule with MillNativeImagePublishModule {
-  def artifactName = "mill-native-image-upload"
-  def scalaVersion = Scala.version
+  def artifactName   = "mill-native-image-upload"
+  def scalaVersion   = Scala.version
   def compileIvyDeps = super.compileIvyDeps() ++ Agg(
     ivy"com.lihaoyi::os-lib:0.11.4", // beware, not binary compatible with 0.7.x
     ivy"com.lihaoyi::ujson:4.1.0",
