@@ -4,7 +4,7 @@ import io.github.alexarchambault.millnativeimage.NativeImage
 
 object hello extends ScalaModule with NativeImage {
   def scalaVersion = "3.3.0-RC4"
-  def ivyDeps      = Agg(
+  def ivyDeps      = Seq(
     ivy"dev.zio::zio:2.0.13",
     ivy"dev.zio::zio-http:3.0.0-RC1",
   )
@@ -41,8 +41,8 @@ object hello extends ScalaModule with NativeImage {
   // If instead of creating a Native-Image binary for current host (Eg. MacOS)
   // you want to create a Docker image with the binary for Linux in a Docker container
   // you can use the following parameters and run `DOCKER_NATIVEIMAGE=1 mill hello.nativeImage`
-  def isDockerBuild           = T.input(T.ctx.env.get("DOCKER_NATIVEIMAGE") != None)
-  def nativeImageDockerParams = T {
+  def isDockerBuild           = Task.Input(Task.env.get("DOCKER_NATIVEIMAGE") != None)
+  def nativeImageDockerParams = Task {
     if (isDockerBuild()) {
       Some(
         NativeImage.DockerParams(
@@ -61,7 +61,7 @@ object hello extends ScalaModule with NativeImage {
   }
 
   object test extends Tests {
-    def ivyDeps = Agg(
+    def ivyDeps = Seq(
       ivy"dev.zio::zio-test:2.0.13",
       ivy"dev.zio::zio-test-sbt:2.0.13",
     )

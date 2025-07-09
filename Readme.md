@@ -76,8 +76,8 @@ In the example below, there is a task that checks if the `DOCKER_NATIVEIMAGE` is
 ```scala
 object hello extends ScalaModule with NativeImage {
   ...
-  def isDockerBuild = T.input(T.ctx.env.get("DOCKER_NATIVEIMAGE") != None)
-  def nativeImageDockerParams = T {
+  def isDockerBuild = Task.Input(Task.env.get("DOCKER_NATIVEIMAGE") != None)
+  def nativeImageDockerParams = Task {
     if (isDockerBuild()) {
       Some(
         NativeImage.DockerParams(

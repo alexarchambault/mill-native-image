@@ -1,8 +1,11 @@
+//| mill-version: 1.0.0-RC2-4-784a1c
+
+import mill.define.BuildCtx
 import mill._, scalalib._, publish._
 import mill.scalalib.api.JvmWorkerUtil.scalaNativeBinaryVersion
 
 val millVersions = Seq(
-  os.read(os.Path(System.getenv(mill.constants.EnvVars.MILL_WORKSPACE_ROOT)) / ".mill-version").trim
+  "1.0.0-RC2-4-784a1c"
 )
 val millBinaryVersions = millVersions.map(millBinaryVersion)
 
@@ -24,7 +27,7 @@ trait MillNativeImagePublishModule extends PublishModule {
 }
 
 object Scala {
-  def version = "3.6.2"
+  def version = "3.7.1"
 }
 
 object plugin      extends Cross[PluginModule](millBinaryVersions)
@@ -32,20 +35,22 @@ trait PluginModule extends Cross.Module[String] with ScalaModule with MillNative
   def millBinaryVersion: String = crossValue
   def artifactName   = s"mill-native-image_mill$millBinaryVersion"
   def scalaVersion   = Scala.version
-  def compileIvyDeps = super.compileIvyDeps() ++ Agg(
-    ivy"com.lihaoyi::mill-scalalib:${millVersion(millBinaryVersion)}"
+  def scalacOptions  = super.scalacOptions() ++ Seq("-deprecation")
+  def compileMvnDeps = super.compileMvnDeps() ++ Seq(
+    mvn"com.lihaoyi::mill-libs-scalalib:${millVersion(millBinaryVersion)}"
   )
 }
 
 object upload extends ScalaModule with MillNativeImagePublishModule {
   def artifactName   = "mill-native-image-upload"
   def scalaVersion   = Scala.version
-  def compileIvyDeps = super.compileIvyDeps() ++ Agg(
-    ivy"com.lihaoyi::os-lib:0.11.4", // beware, not binary compatible with 0.7.x
-    ivy"com.lihaoyi::ujson:4.2.1",
+  def scalacOptions  = super.scalacOptions() ++ Seq("-deprecation")
+  def compileMvnDeps = super.compileMvnDeps() ++ Seq(
+    mvn"com.lihaoyi::os-lib:0.11.4", // beware, not binary compatible with 0.7.x
+    mvn"com.lihaoyi::ujson:4.2.1",
   )
-  def ivyDeps = super.ivyDeps() ++ Agg(
-    ivy"com.softwaremill.sttp.client:core_2.13:2.3.0"
+  def mvnDeps = super.mvnDeps() ++ Seq(
+    mvn"com.softwaremill.sttp.client:core_2.13:2.3.0"
   )
 }
 
@@ -53,8 +58,8 @@ def publishSonatype(tasks: mill.main.Tasks[PublishModule.PublishData]) =
   Task.Command {
     import scala.concurrent.duration._
 
-    val data = T.sequence(tasks.value)()
-    val log  = T.ctx().log
+    val data = Task.sequence(tasks.value)()
+    val log  = Task.log
 
     val credentials = sys.env("SONATYPE_USERNAME") + ":" + sys.env("SONATYPE_PASSWORD")
     val pgpPassword = sys.env("PGP_PASSPHRASE")
@@ -93,7 +98,7 @@ def publishSonatype(tasks: mill.main.Tasks[PublishModule.PublishData]) =
       readTimeout = timeout.toMillis.toInt,
       connectTimeout = timeout.toMillis.toInt,
       log = log,
-      workspace = T.workspace,
+      workspace = BuildCtx.workspaceRoot,
       env = sys.env,
       awaitTimeout = timeout.toMillis.toInt,
       stagingRelease = isRelease,

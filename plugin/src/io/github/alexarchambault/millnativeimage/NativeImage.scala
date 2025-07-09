@@ -4,51 +4,52 @@ import java.io.File
 import java.nio.charset.Charset
 
 import mill._
+import mill.define.BuildCtx
 
 import scala.util.Properties
 
 trait NativeImage extends Module {
   import NativeImage._
 
-  def nativeImagePersist: Boolean            = false
-  def nativeImageUseJpms: T[Option[Boolean]] =
-    T(None)
+  def nativeImagePersist: Boolean               = false
+  def nativeImageUseJpms: Task[Option[Boolean]] =
+    Task(None)
 
-  def nativeImageCsCommand = T {
+  def nativeImageCsCommand = Task {
     Seq(systemCs)
   }
 
-  def nativeImageGraalVmJvmId = T {
+  def nativeImageGraalVmJvmId = Task {
     s"graalvm-java17:$defaultGraalVmVersion"
   }
 
-  def nativeImageClassPath: T[Seq[PathRef]]
-  def nativeImageMainClass: T[String]
-  def nativeImageOptions = T {
+  def nativeImageClassPath: Task[Seq[PathRef]]
+  def nativeImageMainClass: Task[String]
+  def nativeImageOptions = Task {
     Seq.empty[String]
   }
 
-  def nativeImageName = T {
+  def nativeImageName = Task {
     "launcher"
   }
 
-  def nativeImageDockerParams = T {
+  def nativeImageDockerParams = Task {
     Option.empty[DockerParams]
   }
-  def nativeImageDockerWorkingDir = T {
-    T.dest / "working-dir"
+  def nativeImageDockerWorkingDir = Task {
+    Task.dest / "working-dir"
   }
 
-  def nativeImageUseManifest = T {
+  def nativeImageUseManifest = Task {
     Properties.isWin && nativeImageDockerParams().isEmpty
   }
 
   def nativeImageScript(imageDest: String = "") = Task.Command {
-    val imageDestOpt    = if (imageDest.isEmpty) None else Some(os.Path(imageDest, T.workspace))
+    val imageDestOpt    = if (imageDest.isEmpty) None else Some(os.Path(imageDest, BuildCtx.workspaceRoot))
     val cp              = nativeImageClassPath().map(_.path)
     val mainClass0      = nativeImageMainClass()
     val nativeImageDest = {
-      val dir = T.dest
+      val dir = Task.dest
       val str = dir.toString
       val idx = str.lastIndexOf("nativeImageScript")
       if (idx < 0) {
@@ -72,13 +73,13 @@ trait NativeImage extends Module {
       nativeImageDockerParams(),
       nativeImageDockerWorkingDir(),
       nativeImageUseManifest(),
-      T.dest / "working-dir",
+      Task.dest / "working-dir",
       nativeImageUseJpms(),
-      workspace = T.workspace,
+      workspace = BuildCtx.workspaceRoot,
     )
 
     val scriptName = if (Properties.isWin) "generate.bat" else "generate.sh"
-    val scriptPath = T.dest / scriptName
+    val scriptPath = Task.dest / scriptName
 
     def bashScript = {
       val q                                                = "\'"
@@ -152,7 +153,7 @@ trait NativeImage extends Module {
 
   def writeNativeImageScript(scriptDest: String, imageDest: String) =
     Task.Command {
-      val scriptDest0 = os.Path(scriptDest, T.workspace)
+      val scriptDest0 = os.Path(scriptDest, BuildCtx.workspaceRoot)
       val script      = nativeImageScript(imageDest)().path
       os.copy(script, scriptDest0, replaceExisting = true, createFolders = true)
     }
@@ -162,12 +163,12 @@ trait NativeImage extends Module {
       Task(persistent = true) {
         val cp         = nativeImageClassPath().map(_.path)
         val mainClass0 = nativeImageMainClass()
-        val dest       = T.dest / nativeImageName()
-        val actualDest = T.dest / (nativeImageName() + platformExtension)
+        val dest       = Task.dest / nativeImageName()
+        val actualDest = Task.dest / (nativeImageName() + platformExtension)
 
         if (os.isFile(actualDest))
-          T.log.info(
-            s"Warning: not re-computing ${actualDest.relativeTo(T.workspace)}, delete it if you think it's stale"
+          Task.log.info(
+            s"Warning: not re-computing ${actualDest.relativeTo(BuildCtx.workspaceRoot)}, delete it if you think it's stale"
           )
         else {
           val (command, tmpDestOpt, extraEnv) = generateNativeImage(
@@ -180,16 +181,16 @@ trait NativeImage extends Module {
             nativeImageDockerParams(),
             nativeImageDockerWorkingDir(),
             nativeImageUseManifest(),
-            T.dest / "working-dir",
+            Task.dest / "working-dir",
             nativeImageUseJpms(),
-            workspace = T.workspace,
+            workspace = BuildCtx.workspaceRoot,
           )
 
           val res = os.proc(command.map(x => x: os.Shellable) *).call(
             stdin = os.Inherit,
             stdout = os.Inherit,
             env = extraEnv,
-            cwd = T.workspace,
+            cwd = BuildCtx.workspaceRoot,
           )
           if (res.exitCode == 0)
             tmpDestOpt.foreach(tmpDest => os.copy(tmpDest, dest))
@@ -200,11 +201,11 @@ trait NativeImage extends Module {
         PathRef(actualDest)
       }
     else
-      T {
+      Task {
         val cp         = nativeImageClassPath().map(_.path)
         val mainClass0 = nativeImageMainClass()
-        val dest       = T.dest / nativeImageName()
-        val actualDest = T.dest / (nativeImageName() + platformExtension)
+        val dest       = Task.dest / nativeImageName()
+        val actualDest = Task.dest / (nativeImageName() + platformExtension)
 
         val (command, tmpDestOpt, extraEnv) = generateNativeImage(
           nativeImageCsCommand(),
@@ -216,16 +217,16 @@ trait NativeImage extends Module {
           nativeImageDockerParams(),
           nativeImageDockerWorkingDir(),
           nativeImageUseManifest(),
-          T.dest / "working-dir",
+          Task.dest / "working-dir",
           nativeImageUseJpms(),
-          workspace = T.workspace,
+          workspace = BuildCtx.workspaceRoot,
         )
 
         val res = os.proc(command.map(x => x: os.Shellable) *).call(
           stdin = os.Inherit,
           stdout = os.Inherit,
           env = extraEnv,
-          cwd = T.workspace,
+          cwd = BuildCtx.workspaceRoot,
         )
         if (res.exitCode == 0)
           tmpDestOpt.foreach(tmpDest => os.copy(tmpDest, dest))
@@ -291,8 +292,7 @@ object NativeImage {
 
       candidates
         .filter(_.canExecute)
-        .toStream
-        .headOption
+        .find(_ => true)
         .map(_.getAbsolutePath)
         .getOrElse {
           System.err.println("Warning: cs not found in PATH")
@@ -330,8 +330,7 @@ object NativeImage {
       .iterator
       .map(os.Path(_, workspace))
       .filter(os.exists(_))
-      .toStream
-      .headOption
+      .find(_ => true)
 
   final case class DockerParams(
     imageName:            String,
