@@ -1,11 +1,12 @@
-import $ivy.`com.lihaoyi::mill-contrib-bloop:$MILL_VERSION`
-import $ivy.`de.tototec::de.tobiasroeser.mill.vcs.version::0.4.0`
+//| mill-version: 1.0.0-RC2-4-784a1c
 
-import de.tobiasroeser.mill.vcs.version._
+import mill.define.BuildCtx
 import mill._, scalalib._, publish._
-import mill.scalalib.api.ZincWorkerUtil.scalaNativeBinaryVersion
+import mill.scalalib.api.JvmWorkerUtil.scalaNativeBinaryVersion
 
-val millVersions       = Seq("0.10.12", "0.11.0", "0.12.0") // scala-steward:off
+val millVersions = Seq(
+  "1.0.0-RC2-4-784a1c"
+)
 val millBinaryVersions = millVersions.map(millBinaryVersion)
 
 def millBinaryVersion(millVersion: String) = scalaNativeBinaryVersion(millVersion)
@@ -22,32 +23,11 @@ trait MillNativeImagePublishModule extends PublishModule {
       Developer("alexarchambault", "Alex Archambault", "https://github.com/alexarchambault")
     ),
   )
-  def publishVersion = T {
-    val state = VcsVersion.vcsState()
-    if (state.commitsSinceLastTag > 0) {
-      val versionOrEmpty = state.lastTag
-        .filter(_ != "latest")
-        .map(_.stripPrefix("v"))
-        .flatMap { tag =>
-          val idx = tag.lastIndexOf(".")
-          if (idx >= 0)
-            Some(tag.take(idx + 1) + (tag.drop(idx + 1).takeWhile(_.isDigit).toInt + 1).toString + "-SNAPSHOT")
-          else None
-        }
-        .getOrElse("0.0.1-SNAPSHOT")
-      Some(versionOrEmpty)
-        .filter(_.nonEmpty)
-        .getOrElse(state.format())
-    } else
-      state
-        .lastTag
-        .getOrElse(state.format())
-        .stripPrefix("v")
-  }
+  def publishVersion = "0.1.32-SNAPSHOT"
 }
 
 object Scala {
-  def version = "2.13.12"
+  def version = "3.7.1"
 }
 
 object plugin      extends Cross[PluginModule](millBinaryVersions)
@@ -55,29 +35,31 @@ trait PluginModule extends Cross.Module[String] with ScalaModule with MillNative
   def millBinaryVersion: String = crossValue
   def artifactName   = s"mill-native-image_mill$millBinaryVersion"
   def scalaVersion   = Scala.version
-  def compileIvyDeps = super.compileIvyDeps() ++ Agg(
-    ivy"com.lihaoyi::mill-scalalib:${millVersion(millBinaryVersion)}"
+  def scalacOptions  = super.scalacOptions() ++ Seq("-deprecation")
+  def compileMvnDeps = super.compileMvnDeps() ++ Seq(
+    mvn"com.lihaoyi::mill-libs-scalalib:${millVersion(millBinaryVersion)}"
   )
 }
 
 object upload extends ScalaModule with MillNativeImagePublishModule {
   def artifactName   = "mill-native-image-upload"
   def scalaVersion   = Scala.version
-  def compileIvyDeps = super.compileIvyDeps() ++ Agg(
-    ivy"com.lihaoyi::os-lib:0.11.4", // beware, not binary compatible with 0.7.x
-    ivy"com.lihaoyi::ujson:4.2.1",
+  def scalacOptions  = super.scalacOptions() ++ Seq("-deprecation")
+  def compileMvnDeps = super.compileMvnDeps() ++ Seq(
+    mvn"com.lihaoyi::os-lib:0.11.4", // beware, not binary compatible with 0.7.x
+    mvn"com.lihaoyi::ujson:4.2.1",
   )
-  def ivyDeps = super.ivyDeps() ++ Agg(
-    ivy"com.softwaremill.sttp.client::core:2.3.0"
+  def mvnDeps = super.mvnDeps() ++ Seq(
+    mvn"com.softwaremill.sttp.client:core_2.13:2.3.0"
   )
 }
 
 def publishSonatype(tasks: mill.main.Tasks[PublishModule.PublishData]) =
-  T.command {
+  Task.Command {
     import scala.concurrent.duration._
 
-    val data = T.sequence(tasks.value)()
-    val log  = T.ctx().log
+    val data = Task.sequence(tasks.value)()
+    val log  = Task.log
 
     val credentials = sys.env("SONATYPE_USERNAME") + ":" + sys.env("SONATYPE_PASSWORD")
     val pgpPassword = sys.env("PGP_PASSPHRASE")
@@ -116,11 +98,11 @@ def publishSonatype(tasks: mill.main.Tasks[PublishModule.PublishData]) =
       readTimeout = timeout.toMillis.toInt,
       connectTimeout = timeout.toMillis.toInt,
       log = log,
-      workspace = T.workspace,
+      workspace = BuildCtx.workspaceRoot,
       env = sys.env,
       awaitTimeout = timeout.toMillis.toInt,
       stagingRelease = isRelease,
     )
 
-    publisher.publishAll(isRelease, artifacts: _*)
+    publisher.publishAll(isRelease, artifacts *)
   }
