@@ -47,7 +47,8 @@ trait MillNativeImagePublishModule extends PublishModule {
 }
 
 object Scala {
-  def version = "2.13.12"
+  def version  = "2.13.12"
+  def version3 = "3.3.4"
 }
 
 object plugin      extends Cross[PluginModule](millBinaryVersions)
@@ -60,15 +61,15 @@ trait PluginModule extends Cross.Module[String] with ScalaModule with MillNative
   )
 }
 
-object upload extends ScalaModule with MillNativeImagePublishModule {
+object upload      extends Cross[UploadModule](Scala.version, Scala.version3)
+trait UploadModule extends CrossScalaModule with MillNativeImagePublishModule {
   def artifactName   = "mill-native-image-upload"
-  def scalaVersion   = Scala.version
   def compileIvyDeps = super.compileIvyDeps() ++ Agg(
-    ivy"com.lihaoyi::os-lib:0.11.4", // beware, not binary compatible with 0.7.x
+    ivy"com.lihaoyi::os-lib:0.11.4",
     ivy"com.lihaoyi::ujson:4.2.1",
   )
   def ivyDeps = super.ivyDeps() ++ Agg(
-    ivy"com.softwaremill.sttp.client::core:2.3.0"
+    ivy"com.softwaremill.sttp.client4::core:4.0.9"
   )
 }
 
