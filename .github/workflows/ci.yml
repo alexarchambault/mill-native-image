@@ -43,11 +43,23 @@ jobs:
         working-directory: example
         run: ./mill show hello.nativeImage
 
+  format:
+    timeout-minutes: 15
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          submodules: true
+      - uses: VirtusLab/scala-cli-setup@v1
+      - run: scala-cli fmt . --check
+
   publish:
     if: github.event_name == 'push' && github.repository == 'alexarchambault/mill-native-image'
     needs:
       - test
       - test-example
+      - format
     runs-on: ubuntu-latest
     steps:
     - uses: actions/checkout@v4
