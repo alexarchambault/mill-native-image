@@ -1,6 +1,6 @@
 package io.github.alexarchambault.millnativeimage.upload
 
-import sttp.client.quick._
+import sttp.client4.quick._
 
 import java.io._
 import java.math.BigInteger
