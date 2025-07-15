@@ -12,7 +12,7 @@ trait NativeImage extends Module {
 
   def nativeImagePersist: Boolean            = false
   def nativeImageUseJpms: T[Option[Boolean]] =
-    T(None)
+    Task(None)
 
   def nativeImageCsCommand = Task {
     Seq(systemCs)
@@ -291,7 +291,7 @@ object NativeImage {
 
       candidates
         .filter(_.canExecute)
-        .toStream
+        .to(LazyList)
         .headOption
         .map(_.getAbsolutePath)
         .getOrElse {
@@ -330,7 +330,7 @@ object NativeImage {
       .iterator
       .map(os.Path(_, workspace))
       .filter(os.exists(_))
-      .toStream
+      .to(LazyList)
       .headOption
 
   final case class DockerParams(
@@ -503,7 +503,7 @@ object NativeImage {
             val scriptPath = dockerWorkingDir / "run-native-image.sh"
             os.write.over(scriptPath, script, createFolders = true)
             os.perms.set(scriptPath, "rwxr-xr-x")
-            val csPath = os.Path(os.proc(csCommand, "get", params.csUrl).call().out.text.trim)
+            val csPath = os.Path(os.proc(csCommand, "get", params.csUrl).call().out.text().trim)
             if (csPath.last.endsWith(".gz")) {
               os.copy.over(csPath, dockerWorkingDir / "cs.gz")
               os.proc("gzip", "-df", dockerWorkingDir / "cs.gz").call(stdout = os.Inherit)

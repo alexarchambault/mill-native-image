@@ -1,14 +1,15 @@
 import $ivy.`com.lihaoyi::mill-contrib-bloop:$MILL_VERSION`
 import $ivy.`de.tototec::de.tobiasroeser.mill.vcs.version::0.4.0`
-
 import de.tobiasroeser.mill.vcs.version._
-import mill._, scalalib._, publish._
-import mill.scalalib.api.ZincWorkerUtil.scalaNativeBinaryVersion
+import mill._
+import mill.scalalib.api._
+import scalalib._
+import publish._
 
 val millVersions       = Seq("0.12.0") // scala-steward:off
 val millBinaryVersions = millVersions.map(millBinaryVersion)
 
-def millBinaryVersion(millVersion: String) = scalaNativeBinaryVersion(millVersion)
+def millBinaryVersion(millVersion: String) = JvmWorkerUtil.scalaNativeBinaryVersion(millVersion)
 def millVersion(binaryVersion:     String) = millVersions.find(v => millBinaryVersion(v) == binaryVersion).get
 
 trait MillNativeImagePublishModule extends PublishModule {
