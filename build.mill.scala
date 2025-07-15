@@ -5,7 +5,7 @@ import de.tobiasroeser.mill.vcs.version._
 import mill._, scalalib._, publish._
 import mill.scalalib.api.ZincWorkerUtil.scalaNativeBinaryVersion
 
-val millVersions       = Seq("0.10.12", "0.11.0", "0.12.0") // scala-steward:off
+val millVersions       = Seq("0.12.0") // scala-steward:off
 val millBinaryVersions = millVersions.map(millBinaryVersion)
 
 def millBinaryVersion(millVersion: String) = scalaNativeBinaryVersion(millVersion)
@@ -22,7 +22,7 @@ trait MillNativeImagePublishModule extends PublishModule {
       Developer("alexarchambault", "Alex Archambault", "https://github.com/alexarchambault")
     ),
   )
-  def publishVersion = T {
+  def publishVersion = Task {
     val state = VcsVersion.vcsState()
     if (state.commitsSinceLastTag > 0) {
       val versionOrEmpty = state.lastTag
@@ -74,11 +74,11 @@ trait UploadModule extends CrossScalaModule with MillNativeImagePublishModule {
 }
 
 def publishSonatype(tasks: mill.main.Tasks[PublishModule.PublishData]) =
-  T.command {
+  Task.Command {
     import scala.concurrent.duration._
 
-    val data = T.sequence(tasks.value)()
-    val log  = T.ctx().log
+    val data = Task.sequence(tasks.value)()
+    val log  = Task.ctx().log
 
     val credentials = sys.env("SONATYPE_USERNAME") + ":" + sys.env("SONATYPE_PASSWORD")
     val pgpPassword = sys.env("PGP_PASSPHRASE")
@@ -117,7 +117,7 @@ def publishSonatype(tasks: mill.main.Tasks[PublishModule.PublishData]) =
       readTimeout = timeout.toMillis.toInt,
       connectTimeout = timeout.toMillis.toInt,
       log = log,
-      workspace = T.workspace,
+      workspace = Task.workspace,
       env = sys.env,
       awaitTimeout = timeout.toMillis.toInt,
       stagingRelease = isRelease,
