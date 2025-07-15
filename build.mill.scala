@@ -48,7 +48,7 @@ trait MillNativeImagePublishModule extends PublishModule {
 }
 
 object Scala {
-  def version  = "2.13.12"
+  def version  = "2.13.16"
   def version3 = "3.3.4"
 }
 
