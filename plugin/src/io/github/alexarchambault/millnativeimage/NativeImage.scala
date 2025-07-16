@@ -3,12 +3,13 @@ package io.github.alexarchambault.millnativeimage
 import java.io.File
 import java.nio.charset.Charset
 
-import mill._
+import mill.*
+import mill.api.*
 
 import scala.util.Properties
 
 trait NativeImage extends Module {
-  import NativeImage._
+  import NativeImage.*
 
   def nativeImagePersist: Boolean            = false
   def nativeImageUseJpms: T[Option[Boolean]] =
@@ -44,7 +45,7 @@ trait NativeImage extends Module {
   }
 
   def nativeImageScript(imageDest: String = "") = Task.Command {
-    val imageDestOpt    = if (imageDest.isEmpty) None else Some(os.Path(imageDest, Task.workspace))
+    val imageDestOpt    = if (imageDest.isEmpty) None else Some(os.Path(imageDest, BuildCtx.workspaceRoot))
     val cp              = nativeImageClassPath().map(_.path)
     val mainClass0      = nativeImageMainClass()
     val nativeImageDest = {
@@ -74,7 +75,7 @@ trait NativeImage extends Module {
       nativeImageUseManifest(),
       Task.dest / "working-dir",
       nativeImageUseJpms(),
-      workspace = Task.workspace,
+      workspace = BuildCtx.workspaceRoot,
     )
 
     val scriptName = if (Properties.isWin) "generate.bat" else "generate.sh"
@@ -152,7 +153,7 @@ trait NativeImage extends Module {
 
   def writeNativeImageScript(scriptDest: String, imageDest: String) =
     Task.Command {
-      val scriptDest0 = os.Path(scriptDest, Task.workspace)
+      val scriptDest0 = os.Path(scriptDest, BuildCtx.workspaceRoot)
       val script      = nativeImageScript(imageDest)().path
       os.copy(script, scriptDest0, replaceExisting = true, createFolders = true)
     }
@@ -167,7 +168,7 @@ trait NativeImage extends Module {
 
         if (os.isFile(actualDest))
           Task.log.info(
-            s"Warning: not re-computing ${actualDest.relativeTo(Task.workspace)}, delete it if you think it's stale"
+            s"Warning: not re-computing ${actualDest.relativeTo(BuildCtx.workspaceRoot)}, delete it if you think it's stale"
           )
         else {
           val (command, tmpDestOpt, extraEnv) = generateNativeImage(
@@ -182,14 +183,14 @@ trait NativeImage extends Module {
             nativeImageUseManifest(),
             Task.dest / "working-dir",
             nativeImageUseJpms(),
-            workspace = Task.workspace,
+            workspace = BuildCtx.workspaceRoot,
           )
 
           val res = os.proc(command.map(x => x: os.Shellable): _*).call(
             stdin = os.Inherit,
             stdout = os.Inherit,
             env = extraEnv,
-            cwd = Task.workspace,
+            cwd = BuildCtx.workspaceRoot,
           )
           if (res.exitCode == 0)
             tmpDestOpt.foreach(tmpDest => os.copy(tmpDest, dest))
@@ -218,14 +219,14 @@ trait NativeImage extends Module {
           nativeImageUseManifest(),
           Task.dest / "working-dir",
           nativeImageUseJpms(),
-          workspace = Task.workspace,
+          workspace = BuildCtx.workspaceRoot,
         )
 
         val res = os.proc(command.map(x => x: os.Shellable): _*).call(
           stdin = os.Inherit,
           stdout = os.Inherit,
           env = extraEnv,
-          cwd = Task.workspace,
+          cwd = BuildCtx.workspaceRoot,
         )
         if (res.exitCode == 0)
           tmpDestOpt.foreach(tmpDest => os.copy(tmpDest, dest))
