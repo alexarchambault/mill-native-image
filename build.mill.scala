@@ -11,8 +11,11 @@ import mill.util.{Tasks, VcsVersion}
 val millVersions       = Seq("1.0.0") // scala-steward:off
 val millBinaryVersions = millVersions.map(millBinaryVersion)
 
-def millBinaryVersion(millVersion: String) = JvmWorkerUtil.scalaNativeBinaryVersion(millVersion)
-def millVersion(binaryVersion:     String) = millVersions.find(v => millBinaryVersion(v) == binaryVersion).get
+def millBinaryVersion(millVersion: String) = JvmWorkerUtil.scalaNativeBinaryVersion(millVersion) match {
+  case v if v.startsWith("1") => "1"
+  case v                      => v
+}
+def millVersion(binaryVersion: String) = millVersions.find(v => millBinaryVersion(v) == binaryVersion).get
 
 def ghOrg      = "alexarchambault"
 def ghName     = "mill-native-image"

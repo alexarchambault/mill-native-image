@@ -1,13 +1,14 @@
-import mill._, mill.scalalib._
-import $ivy.`io.github.alexarchambault.mill::mill-native-image::0.1.31-1`
+//| mvnDeps:
+//| - io.github.alexarchambault.mill::mill-native-image::2.0.0
+import mill.*, mill.scalalib.*
 import io.github.alexarchambault.millnativeimage.NativeImage
 
 object hello extends ScalaModule with NativeImage {
   def scalaVersion = "3.3.6"
 
-  def ivyDeps = Agg(
-    ivy"dev.zio::zio:2.0.13",
-    ivy"dev.zio::zio-http:3.0.0-RC1",
+  def mvnDeps = Seq(
+    mvn"dev.zio::zio:2.0.13",
+    mvn"dev.zio::zio-http:3.0.0-RC1",
   )
 
   def nativeImageName = "hello"
@@ -67,9 +68,9 @@ object hello extends ScalaModule with NativeImage {
   }
 
   object test extends ScalaTests with TestModule.ZioTest {
-    def ivyDeps = Agg(
-      ivy"dev.zio::zio-test:2.0.13",
-      ivy"dev.zio::zio-test-sbt:2.0.13",
+    def mvnDeps = Seq(
+      mvn"dev.zio::zio-test:2.0.13",
+      mvn"dev.zio::zio-test-sbt:2.0.13",
     )
   }
 }
