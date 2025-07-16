@@ -8,13 +8,18 @@ import scalalib.*
 import publish.*
 import mill.util.{Tasks, VcsVersion}
 
-val millVersions       = Seq("1.0.0") // scala-steward:off
-val millBinaryVersions = millVersions.map(millBinaryVersion)
+import scala.util.Try
 
-def millBinaryVersion(millVersion: String) = JvmWorkerUtil.scalaNativeBinaryVersion(millVersion) match {
-  case v if v.startsWith("1") => "1"
-  case v                      => v
+val millVersions                            = Seq("1.0.0") // scala-steward:off
+val millBinaryVersions                      = millVersions.map(millBinaryVersion)
+def millBinaryVersion(millVersion: String) = {
+  val nativeBinaryVersion = JvmWorkerUtil.scalaNativeBinaryVersion(millVersion)
+  nativeBinaryVersion.split("\\.") match {
+    case Array(major, minor, _*) if Try(major.toInt < 1).getOrElse(false) => s"$major.$minor"
+    case Array(major, minor, _*)                                          => major
+  }
 }
+
 def millVersion(binaryVersion: String) = millVersions.find(v => millBinaryVersion(v) == binaryVersion).get
 
 def ghOrg      = "alexarchambault"
