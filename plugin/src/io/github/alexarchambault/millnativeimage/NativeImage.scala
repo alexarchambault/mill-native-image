@@ -2,7 +2,6 @@ package io.github.alexarchambault.millnativeimage
 
 import java.io.File
 import java.nio.charset.Charset
-
 import mill.*
 import mill.api.*
 
@@ -15,44 +14,44 @@ trait NativeImage extends Module {
   def nativeImageUseJpms: T[Option[Boolean]] =
     Task(None)
 
-  def nativeImageCsCommand = Task {
+  def nativeImageCsCommand: T[Seq[String]] = Task {
     Seq(systemCs)
   }
 
-  def nativeImageGraalVmJvmId = Task {
+  def nativeImageGraalVmJvmId: T[String] = Task {
     s"graalvm-java17:$defaultGraalVmVersion"
   }
 
   def nativeImageClassPath: T[Seq[PathRef]]
   def nativeImageMainClass: T[String]
-  def nativeImageOptions = Task {
+  def nativeImageOptions:   T[Seq[String]] = Task {
     Seq.empty[String]
   }
 
-  def nativeImageName = Task {
+  def nativeImageName: T[String] = Task {
     "launcher"
   }
 
-  def nativeImageDockerParams = Task {
+  def nativeImageDockerParams: T[Option[DockerParams]] = Task {
     Option.empty[DockerParams]
   }
-  def nativeImageDockerWorkingDir = Task {
+  def nativeImageDockerWorkingDir: T[os.Path] = Task {
     Task.dest / "working-dir"
   }
 
-  def nativeImageUseManifest = Task {
+  def nativeImageUseManifest: T[Boolean] = Task {
     Properties.isWin && nativeImageDockerParams().isEmpty
   }
 
-  def nativeImageScript(imageDest: String = "") = Task.Command {
-    val imageDestOpt    = if (imageDest.isEmpty) None else Some(os.Path(imageDest, BuildCtx.workspaceRoot))
+  def nativeImageScript(imageDest: String = ""): Task.Command[PathRef] = Task.Command {
+    val imageDestOpt    = if imageDest.isEmpty then None else Some(os.Path(imageDest, BuildCtx.workspaceRoot))
     val cp              = nativeImageClassPath().map(_.path)
     val mainClass0      = nativeImageMainClass()
     val nativeImageDest = {
       val dir = Task.dest
       val str = dir.toString
       val idx = str.lastIndexOf("nativeImageScript")
-      if (idx < 0) {
+      if idx < 0 then {
         System.err.println(s"Something went wrong, cannot find nativeImageScript in path $str")
         dir
       } else {
@@ -78,7 +77,7 @@ trait NativeImage extends Module {
       workspace = BuildCtx.workspaceRoot,
     )
 
-    val scriptName = if (Properties.isWin) "generate.bat" else "generate.sh"
+    val scriptName = if Properties.isWin then "generate.bat" else "generate.sh"
     val scriptPath = Task.dest / scriptName
 
     def bashScript = {
@@ -87,7 +86,7 @@ trait NativeImage extends Module {
         System.lineSeparator() +
           s"mkdir -p $q${to / os.up}$q" +
           System.lineSeparator() +
-          s"${if (move) "mv" else "cp"} $q$from$q $q$to$q"
+          s"${if move then "mv" else "cp"} $q$from$q $q$to$q"
 
       val extra0 = tmpDestOpt.fold("") { tmpDest =>
         extra(tmpDest, actualDest, move = true)
@@ -118,7 +117,7 @@ trait NativeImage extends Module {
         System.lineSeparator() +
           s"md $q${to / os.up}$q" +
           System.lineSeparator() +
-          s"${if (move) "mv" else "copy /y"} $q$from$q $q$to$q"
+          s"${if move then "mv" else "copy /y"} $q$from$q $q$to$q"
 
       val extra0 = tmpDestOpt.fold("") { tmpDest =>
         extra(tmpDest, actualDest, move = true)
@@ -141,32 +140,31 @@ trait NativeImage extends Module {
          |""".stripMargin + extra0 + extra1
     }
 
-    val content = if (Properties.isWin) batScript else bashScript
+    val content = if Properties.isWin then batScript else bashScript
 
     os.write.over(scriptPath, content.getBytes(Charset.defaultCharset()), createFolders = true)
 
-    if (!Properties.isWin)
-      os.perms.set(scriptPath, "rwxr-xr-x")
+    if !Properties.isWin then os.perms.set(scriptPath, "rwxr-xr-x")
 
     PathRef(scriptPath)
   }
 
-  def writeNativeImageScript(scriptDest: String, imageDest: String) =
+  def writeNativeImageScript(scriptDest: String, imageDest: String): Task.Command[Unit] =
     Task.Command {
       val scriptDest0 = os.Path(scriptDest, BuildCtx.workspaceRoot)
       val script      = nativeImageScript(imageDest)().path
       os.copy(script, scriptDest0, replaceExisting = true, createFolders = true)
     }
 
-  def nativeImage =
-    if (nativeImagePersist)
+  def nativeImage: T[PathRef] =
+    if nativeImagePersist then
       Task(persistent = true) {
         val cp         = nativeImageClassPath().map(_.path)
         val mainClass0 = nativeImageMainClass()
         val dest       = Task.dest / nativeImageName()
         val actualDest = Task.dest / (nativeImageName() + platformExtension)
 
-        if (os.isFile(actualDest))
+        if os.isFile(actualDest) then
           Task.log.info(
             s"Warning: not re-computing ${actualDest.relativeTo(BuildCtx.workspaceRoot)}, delete it if you think it's stale"
           )
@@ -186,16 +184,14 @@ trait NativeImage extends Module {
             workspace = BuildCtx.workspaceRoot,
           )
 
-          val res = os.proc(command.map(x => x: os.Shellable): _*).call(
+          val res = os.proc(command.map(x => x: os.Shellable)*).call(
             stdin = os.Inherit,
             stdout = os.Inherit,
             env = extraEnv,
             cwd = BuildCtx.workspaceRoot,
           )
-          if (res.exitCode == 0)
-            tmpDestOpt.foreach(tmpDest => os.copy(tmpDest, dest))
-          else
-            sys.error(s"native-image command exited with ${res.exitCode}")
+          if res.exitCode == 0 then tmpDestOpt.foreach(tmpDest => os.copy(tmpDest, dest))
+          else sys.error(s"native-image command exited with ${res.exitCode}")
         }
 
         PathRef(actualDest)
@@ -222,16 +218,14 @@ trait NativeImage extends Module {
           workspace = BuildCtx.workspaceRoot,
         )
 
-        val res = os.proc(command.map(x => x: os.Shellable): _*).call(
+        val res = os.proc(command.map(x => x: os.Shellable)*).call(
           stdin = os.Inherit,
           stdout = os.Inherit,
           env = extraEnv,
           cwd = BuildCtx.workspaceRoot,
         )
-        if (res.exitCode == 0)
-          tmpDestOpt.foreach(tmpDest => os.copy(tmpDest, dest))
-        else
-          sys.error(s"native-image command exited with ${res.exitCode}")
+        if res.exitCode == 0 then tmpDestOpt.foreach(tmpDest => os.copy(tmpDest, dest))
+        else sys.error(s"native-image command exited with ${res.exitCode}")
 
         PathRef(actualDest)
       }
@@ -239,12 +233,11 @@ trait NativeImage extends Module {
 }
 
 object NativeImage {
+  def defaultGraalVmVersion: String = "22.3.0"
 
-  def defaultGraalVmVersion = "22.3.0"
-
-  def defaultLinuxStaticDockerImage =
+  def defaultLinuxStaticDockerImage: String =
     "messense/rust-musl-cross@sha256:12d0dd535ef7364bf49cb2608ae7eaf60e40d07834eb4d9160c592422a08d3b3"
-  def csLinuxX86_64Url(version: String) =
+  def csLinuxX86_64Url(version: String): String =
     s"https://github.com/coursier/coursier/releases/download/v$version/cs-x86_64-pc-linux"
 
   def linuxStaticParams(dockerImage: String, csUrl: String): DockerParams =
@@ -261,7 +254,7 @@ object NativeImage {
   def linuxStaticParams(): DockerParams =
     linuxStaticParams(defaultLinuxStaticDockerImage, csLinuxX86_64Url("2.0.16"))
 
-  def defaultLinuxMostlyStaticDockerImage = "ubuntu:18.04"
+  def defaultLinuxMostlyStaticDockerImage:                         String       = "ubuntu:18.04"
   def linuxMostlyStaticParams(dockerImage: String, csUrl: String): DockerParams =
     DockerParams(
       imageName = dockerImage,
@@ -275,7 +268,7 @@ object NativeImage {
     linuxMostlyStaticParams(defaultLinuxMostlyStaticDockerImage, csLinuxX86_64Url("2.0.16"))
 
   lazy val systemCs: String =
-    if (Properties.isWin) {
+    if Properties.isWin then {
       val pathExt = Option(System.getenv("PATHEXT"))
         .toSeq
         .flatMap(_.split(File.pathSeparator).toSeq)
@@ -302,22 +295,20 @@ object NativeImage {
     } else
       "cs"
 
-  def platformExtension: String =
-    if (Properties.isWin) ".exe"
-    else ""
+  def platformExtension: String = if Properties.isWin then ".exe" else ""
 
   // should be the default index in the upcoming coursier release (> 2.0.16)
-  def jvmIndex = "https://github.com/coursier/jvm-index/raw/master/index.json"
+  def jvmIndex: String = "https://github.com/coursier/jvm-index/raw/master/index.json"
 
-  private def vcVersions    = Seq("2022", "2019", "2017")
-  private def vcEditions    = Seq("Enterprise", "Community", "BuildTools")
-  lazy val vcvarsCandidates = Option(System.getenv("VCVARSALL")) ++ {
+  private def vcVersions:    Seq[String]      = Seq("2022", "2019", "2017")
+  private def vcEditions:    Seq[String]      = Seq("Enterprise", "Community", "BuildTools")
+  lazy val vcvarsCandidates: Iterable[String] = Option(System.getenv("VCVARSALL")) ++ {
     for {
       isX86   <- Seq(false, true)
       version <- vcVersions
       edition <- vcEditions
     } yield {
-      val programFiles = if (isX86) "Program Files (x86)" else "Program Files"
+      val programFiles = if isX86 then "Program Files (x86)" else "Program Files"
       """C:\""" + programFiles + """\Microsoft Visual Studio\""" + version + "\\" + edition + """\VC\Auxiliary\Build\vcvars64.bat"""
     }
   }
@@ -361,27 +352,27 @@ object NativeImage {
   ): (Seq[String], Option[os.Path], Map[String, String]) = {
 
     val graalVmHome = Option(System.getenv("GRAALVM_HOME")).getOrElse {
-      import sys.process._
+      import sys.process.*
       (csCommand ++ Seq("java-home", "--jvm", jvmId, "--jvm-index", jvmIndex, "--update", "--ttl", "0")).!!.trim
     }
 
-    val ext         = if (Properties.isWin) ".cmd" else ""
+    val ext         = if Properties.isWin then ".cmd" else ""
     val nativeImage = s"$graalVmHome/bin/native-image$ext"
 
-    if (!os.isFile(os.Path(nativeImage))) {
+    if !os.isFile(os.Path(nativeImage)) then {
       val ret = os.proc(s"$graalVmHome/bin/gu$ext", "install", "native-image").call(
         stdin = os.Inherit,
         stdout = os.Inherit,
       )
-      if (ret.exitCode != 0)
+      if ret.exitCode != 0 then
         System.err.println(s"Warning: 'gu install native-image' exited with return code ${ret.exitCode}}")
-      if (!os.isFile(os.Path(nativeImage)))
+      if !os.isFile(os.Path(nativeImage)) then
         System.err.println(s"Warning: $nativeImage not found, and not installed by 'gu install native-image'")
     }
 
     val finalCp =
-      if (createManifest) {
-        import java.util.jar._
+      if createManifest then {
+        import java.util.jar.*
         val manifest   = new Manifest
         val attributes = manifest.getMainAttributes
         attributes.put(Attributes.Name.MANIFEST_VERSION, "1.0")
@@ -413,14 +404,14 @@ object NativeImage {
         )
     }
 
-    def defaultCommand = {
+    def defaultCommand: Seq[String] = {
       val relDest    = dest.relativeTo(workspace)
-      val destDirOpt = if (relDest.segments.length > 1) Some((relDest / os.up).toString) else None
+      val destDirOpt = if relDest.segments.length > 1 then Some((relDest / os.up).toString) else None
       val destName   = relDest.last
       command(nativeImage, Nil, destDirOpt, destName, finalCp)
     }
 
-    def default = {
+    def default: (Seq[String], Option[os.Path], Map[String, String]) = {
       val extraEnv = useJpms match {
         case None    => Map.empty[String, String]
         case Some(v) => Map("USE_NATIVE_IMAGE_JAVA_PLATFORM_MODULE_SYSTEM" -> v.toString)
@@ -428,8 +419,8 @@ object NativeImage {
       (defaultCommand, None, extraEnv)
     }
 
-    val (finalCommand, tmpDestOpt, extraEnv) =
-      if (Properties.isWin)
+    val (finalCommand: Seq[String], tmpDestOpt: Option[os.Path], extraEnv: Map[String, String]) =
+      if Properties.isWin then
         vcvarsOpt0(workspace) match {
           case None =>
             System.err.println(s"Warning: vcvarsall script not found in predefined locations:")
@@ -461,15 +452,15 @@ object NativeImage {
           case Some(params) =>
             var entries = Set.empty[String]
             val cpDir   = dockerWorkingDir / "cp"
-            if (os.exists(cpDir))
-              os.remove.all(cpDir)
+            if os.exists(cpDir) then os.remove.all(cpDir)
             os.makeDir.all(cpDir)
             val copiedCp = classPath.filter(os.exists(_)).map { f =>
               val name =
-                if (entries(f.last)) {
+                if entries(f.last) then {
                   var i           = 1
-                  val (base, ext) = if (f.last.endsWith(".jar")) (f.last.stripSuffix(".jar"), ".jar") else (f.last, "")
-                  var candidate   = ""
+                  val (base, ext) =
+                    if f.last.endsWith(".jar") then (f.last.stripSuffix(".jar"), ".jar") else (f.last, "")
+                  var candidate = ""
                   while ({
                     candidate = s"$base-$i$ext"
                     entries(candidate)
@@ -505,13 +496,12 @@ object NativeImage {
             os.write.over(scriptPath, script, createFolders = true)
             os.perms.set(scriptPath, "rwxr-xr-x")
             val csPath = os.Path(os.proc(csCommand, "get", params.csUrl).call().out.text().trim)
-            if (csPath.last.endsWith(".gz")) {
+            if csPath.last.endsWith(".gz") then {
               os.copy.over(csPath, dockerWorkingDir / "cs.gz")
               os.proc("gzip", "-df", dockerWorkingDir / "cs.gz").call(stdout = os.Inherit)
-            } else
-              os.copy.over(csPath, dockerWorkingDir / "cs")
+            } else os.copy.over(csPath, dockerWorkingDir / "cs")
             os.perms.set(dockerWorkingDir / "cs", "rwxr-xr-x")
-            val termOpt   = if (System.console() == null) Nil else Seq("-t")
+            val termOpt   = if System.console() == null then Nil else Seq("-t")
             val dockerCmd = Seq("docker", "run") ++ termOpt ++ Seq(
               "--rm",
               "-v",
