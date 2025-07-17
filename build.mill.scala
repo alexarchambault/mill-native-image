@@ -1,28 +1,33 @@
 import $ivy.`com.lihaoyi::mill-contrib-bloop:$MILL_VERSION`
 import $ivy.`de.tototec::de.tobiasroeser.mill.vcs.version::0.4.0`
-
+import com.lumidion.sonatype.central.client.core.{PublishingType, SonatypeCredentials}
 import de.tobiasroeser.mill.vcs.version._
-import mill._, scalalib._, publish._
-import mill.scalalib.api.ZincWorkerUtil.scalaNativeBinaryVersion
+import mill._
+import mill.scalalib.api._
+import scalalib._
+import publish._
 
-val millVersions       = Seq("0.10.12", "0.11.0", "0.12.0") // scala-steward:off
+val millVersions       = Seq("0.12.0") // scala-steward:off
 val millBinaryVersions = millVersions.map(millBinaryVersion)
 
-def millBinaryVersion(millVersion: String) = scalaNativeBinaryVersion(millVersion)
+def millBinaryVersion(millVersion: String) = JvmWorkerUtil.scalaNativeBinaryVersion(millVersion)
 def millVersion(binaryVersion:     String) = millVersions.find(v => millBinaryVersion(v) == binaryVersion).get
 
-trait MillNativeImagePublishModule extends PublishModule {
+def ghOrg      = "alexarchambault"
+def ghName     = "mill-native-image"
+def publishOrg = "io.github.alexarchambault.mill"
+trait MillNativeImagePublishModule extends SonatypeCentralPublishModule {
   def pomSettings = PomSettings(
     description = artifactName(),
-    organization = "io.github.alexarchambault.mill",
-    url = s"https://github.com/alexarchambault/mill-native-image",
+    organization = publishOrg,
+    url = s"https://github.com/$ghOrg/$ghName",
     licenses = Seq(License.`Apache-2.0`),
     versionControl = VersionControl.github("alexarchambault", "mill-native-image"),
     developers = Seq(
       Developer("alexarchambault", "Alex Archambault", "https://github.com/alexarchambault")
     ),
   )
-  def publishVersion = T {
+  def publishVersion = Task {
     val state = VcsVersion.vcsState()
     if (state.commitsSinceLastTag > 0) {
       val versionOrEmpty = state.lastTag
@@ -47,8 +52,8 @@ trait MillNativeImagePublishModule extends PublishModule {
 }
 
 object Scala {
-  def version  = "2.13.12"
-  def version3 = "3.3.4"
+  def version  = "2.13.16"
+  def version3 = "3.3.6"
 }
 
 object plugin      extends Cross[PluginModule](millBinaryVersions)
@@ -74,18 +79,27 @@ trait UploadModule extends CrossScalaModule with MillNativeImagePublishModule {
 }
 
 def publishSonatype(tasks: mill.main.Tasks[PublishModule.PublishData]) =
-  T.command {
+  Task.Command {
+    // TODO: include version string in the bundle name (shouldn't influence releases)
+    val bundleName = s"$publishOrg-$ghName"
+    System.err.println(s"Publishing bundle: $bundleName")
+
     import scala.concurrent.duration._
 
-    val data = T.sequence(tasks.value)()
-    val log  = T.ctx().log
+    val data = Task.sequence(tasks.value)()
+    val log  = Task.ctx().log
 
-    val credentials = sys.env("SONATYPE_USERNAME") + ":" + sys.env("SONATYPE_PASSWORD")
+    val credentials = SonatypeCredentials(
+      username = sys.env("SONATYPE_USERNAME"),
+      password = sys.env("SONATYPE_PASSWORD"),
+    )
     val pgpPassword = sys.env("PGP_PASSPHRASE")
     val timeout     = 10.minutes
 
+    System.err.println("Actual artifacts included in the bundle:")
     val artifacts = data.map {
       case PublishModule.PublishData(a, s) =>
+        System.err.println(s"  ${a.group}:${a.id}:${a.version}")
         (s.map { case (p, f) => (p.path, f) }, a)
     }
 
@@ -98,11 +112,9 @@ def publishSonatype(tasks: mill.main.Tasks[PublishModule.PublishData]) =
       )
       set.head
     }
-    val publisher = new scalalib.publish.SonatypePublisher(
-      uri = "https://s01.oss.sonatype.org/service/local",
-      snapshotUri = "https://s01.oss.sonatype.org/content/repositories/snapshots",
+    System.err.println(s"Is release: $isRelease")
+    val publisher = new SonatypeCentralPublisher(
       credentials = credentials,
-      signed = true,
       gpgArgs = Seq(
         "--detach-sign",
         "--batch=true",
@@ -117,11 +129,17 @@ def publishSonatype(tasks: mill.main.Tasks[PublishModule.PublishData]) =
       readTimeout = timeout.toMillis.toInt,
       connectTimeout = timeout.toMillis.toInt,
       log = log,
-      workspace = T.workspace,
+      workspace = Task.workspace,
       env = sys.env,
       awaitTimeout = timeout.toMillis.toInt,
-      stagingRelease = isRelease,
     )
-
-    publisher.publishAll(isRelease, artifacts: _*)
+    val publishingType = if (isRelease) PublishingType.AUTOMATIC else PublishingType.USER_MANAGED
+    System.err.println(s"Publishing type: $publishingType")
+    val finalBundleName = if (bundleName.nonEmpty) Some(bundleName) else None
+    System.err.println(s"Final bundle name: $finalBundleName")
+    publisher.publishAll(
+      publishingType = publishingType,
+      singleBundleName = finalBundleName,
+      artifacts = artifacts: _*,
+    )
   }

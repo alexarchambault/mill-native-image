@@ -22,8 +22,44 @@ jobs:
     - name: Compile
       run: ./mill __.compile
 
+  test-example:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          submodules: true
+      - uses: coursier/cache-action@v6.4
+      - uses: coursier/setup-action@v1
+        with:
+          jvm: 11
+      - name: Compile example
+        working-directory: example
+        run: ./mill __.compile
+      - name: Run example tests
+        working-directory: example
+        run: ./mill __.test
+      - name: Generate example native image
+        working-directory: example
+        run: ./mill show hello.nativeImage
+
+  format:
+    timeout-minutes: 15
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          submodules: true
+      - uses: VirtusLab/scala-cli-setup@v1
+      - run: scala-cli fmt . --check
+
   publish:
     if: github.event_name == 'push' && github.repository == 'alexarchambault/mill-native-image'
+    needs:
+      - test
+      - test-example
+      - format
     runs-on: ubuntu-latest
     steps:
     - uses: actions/checkout@v4
