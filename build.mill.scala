@@ -1,23 +1,32 @@
-import $ivy.`com.lihaoyi::mill-contrib-bloop:$MILL_VERSION`
-import $ivy.`de.tototec::de.tobiasroeser.mill.vcs.version::0.4.0`
+//| mvnDeps:
+//| - com.lumidion::sonatype-central-client-requests:0.6.0
 import com.lumidion.sonatype.central.client.core.{PublishingType, SonatypeCredentials}
-import de.tobiasroeser.mill.vcs.version._
-import mill._
-import mill.scalalib.api._
-import scalalib._
-import publish._
+import mill.*
+import mill.api.{Task, *}
+import mill.javalib.api.*
+import scalalib.*
+import publish.*
+import mill.util.{Tasks, VcsVersion}
 
-val millVersions       = Seq("0.12.0") // scala-steward:off
-val millBinaryVersions = millVersions.map(millBinaryVersion)
+import scala.util.Try
 
-def millBinaryVersion(millVersion: String) = JvmWorkerUtil.scalaNativeBinaryVersion(millVersion)
-def millVersion(binaryVersion:     String) = millVersions.find(v => millBinaryVersion(v) == binaryVersion).get
+val millVersions = Seq("1.0.0") // scala-steward:off
+val millBinaryVersions:                     Seq[String] = millVersions.map(millBinaryVersion)
+def millBinaryVersion(millVersion: String): String      = {
+  val nativeBinaryVersion = JvmWorkerUtil.scalaNativeBinaryVersion(millVersion)
+  nativeBinaryVersion.split("\\.") match {
+    case Array(major, minor, _*) if Try(major.toInt < 1).getOrElse(false) => s"$major.$minor"
+    case Array(major, minor, _*)                                          => major
+  }
+}
+
+def millVersion(binaryVersion: String): String = millVersions.find(v => millBinaryVersion(v) == binaryVersion).get
 
 def ghOrg      = "alexarchambault"
 def ghName     = "mill-native-image"
 def publishOrg = "io.github.alexarchambault.mill"
 trait MillNativeImagePublishModule extends SonatypeCentralPublishModule {
-  def pomSettings = PomSettings(
+  def pomSettings: T[PomSettings] = PomSettings(
     description = artifactName(),
     organization = publishOrg,
     url = s"https://github.com/$ghOrg/$ghName",
@@ -27,15 +36,15 @@ trait MillNativeImagePublishModule extends SonatypeCentralPublishModule {
       Developer("alexarchambault", "Alex Archambault", "https://github.com/alexarchambault")
     ),
   )
-  def publishVersion = Task {
+  def publishVersion: T[String] = Task {
     val state = VcsVersion.vcsState()
-    if (state.commitsSinceLastTag > 0) {
+    if state.commitsSinceLastTag > 0 then {
       val versionOrEmpty = state.lastTag
         .filter(_ != "latest")
         .map(_.stripPrefix("v"))
         .flatMap { tag =>
           val idx = tag.lastIndexOf(".")
-          if (idx >= 0)
+          if idx >= 0 then
             Some(tag.take(idx + 1) + (tag.drop(idx + 1).takeWhile(_.isDigit).toInt + 1).toString + "-SNAPSHOT")
           else None
         }
@@ -52,33 +61,35 @@ trait MillNativeImagePublishModule extends SonatypeCentralPublishModule {
 }
 
 object Scala {
-  def version  = "2.13.16"
-  def version3 = "3.3.6"
+  def version3: String = "3.7.1"
 }
 
 object plugin      extends Cross[PluginModule](millBinaryVersions)
 trait PluginModule extends Cross.Module[String] with ScalaModule with MillNativeImagePublishModule {
-  def millBinaryVersion: String = crossValue
-  def artifactName   = s"mill-native-image_mill$millBinaryVersion"
-  def scalaVersion   = Scala.version
-  def compileIvyDeps = super.compileIvyDeps() ++ Agg(
-    ivy"com.lihaoyi::mill-scalalib:${millVersion(millBinaryVersion)}"
+  def millBinaryVersion: String      = crossValue
+  def artifactName:      T[String]   = s"mill-native-image_mill$millBinaryVersion"
+  def scalaVersion:      T[String]   = Scala.version3
+  def compileMvnDeps:    T[Seq[Dep]] = super.compileMvnDeps() ++ Seq(
+    mvn"com.lihaoyi::mill-libs-scalalib:${millVersion(millBinaryVersion)}"
   )
 }
 
-object upload      extends Cross[UploadModule](Scala.version, Scala.version3)
-trait UploadModule extends CrossScalaModule with MillNativeImagePublishModule {
-  def artifactName   = "mill-native-image-upload"
-  def compileIvyDeps = super.compileIvyDeps() ++ Agg(
-    ivy"com.lihaoyi::os-lib:0.11.4",
-    ivy"com.lihaoyi::ujson:4.2.1",
-  )
-  def ivyDeps = super.ivyDeps() ++ Agg(
-    ivy"com.softwaremill.sttp.client4::core:4.0.9"
+object upload      extends UploadModule
+trait UploadModule extends ScalaModule with MillNativeImagePublishModule {
+  override def artifactName:   T[String]   = "mill-native-image-upload"
+  def scalaVersion:            T[String]   = Scala.version3
+  override def compileMvnDeps: T[Seq[Dep]] =
+    super.compileMvnDeps() ++ Seq(
+      mvn"com.lihaoyi::os-lib:0.11.4",
+      mvn"com.lihaoyi::ujson:4.2.1",
+    )
+
+  override def mvnDeps: T[Seq[Dep]] = super.mvnDeps() ++ Seq(
+    mvn"com.softwaremill.sttp.client4::core:4.0.9"
   )
 }
 
-def publishSonatype(tasks: mill.main.Tasks[PublishModule.PublishData]) =
+def publishSonatype(tasks: Tasks[PublishModule.PublishData]): Task.Command[Unit] =
   Task.Command {
     // TODO: include version string in the bundle name (shouldn't influence releases)
     val bundleName = s"$publishOrg-$ghName"
@@ -129,7 +140,7 @@ def publishSonatype(tasks: mill.main.Tasks[PublishModule.PublishData]) =
       readTimeout = timeout.toMillis.toInt,
       connectTimeout = timeout.toMillis.toInt,
       log = log,
-      workspace = Task.workspace,
+      workspace = BuildCtx.workspaceRoot,
       env = sys.env,
       awaitTimeout = timeout.toMillis.toInt,
     )
@@ -140,6 +151,6 @@ def publishSonatype(tasks: mill.main.Tasks[PublishModule.PublishData]) =
     publisher.publishAll(
       publishingType = publishingType,
       singleBundleName = finalBundleName,
-      artifacts = artifacts: _*,
+      artifacts = artifacts*,
     )
   }

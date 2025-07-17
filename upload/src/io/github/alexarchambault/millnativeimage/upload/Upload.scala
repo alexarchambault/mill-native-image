@@ -1,8 +1,8 @@
 package io.github.alexarchambault.millnativeimage.upload
 
-import sttp.client4.quick._
+import sttp.client4.quick.*
 
-import java.io._
+import java.io.*
 import java.math.BigInteger
 import java.nio.file.Path
 import java.nio.file.attribute.FileTime
@@ -12,10 +12,7 @@ import scala.util.Properties
 import scala.util.control.NonFatal
 
 object Upload {
-
-  def platformExtension: String =
-    if (Properties.isWin) ".exe"
-    else ""
+  def platformExtension: String = if Properties.isWin then ".exe" else ""
 
   def platformSuffix: String = {
     val arch = sys.props("os.arch").toLowerCase(java.util.Locale.ROOT) match {
@@ -23,9 +20,9 @@ object Upload {
       case other   => other
     }
     val os =
-      if (Properties.isWin) "pc-win32"
-      else if (Properties.isLinux) "pc-linux"
-      else if (Properties.isMac) "apple-darwin"
+      if Properties.isWin then "pc-win32"
+      else if Properties.isLinux then "pc-linux"
+      else if Properties.isMac then "apple-darwin"
       else sys.error(s"Unrecognized OS: ${sys.props("os.name")}")
     s"$arch-$os"
   }
@@ -36,11 +33,10 @@ object Upload {
       var zf: ZipFile = null
       try { zf = new ZipFile(path.toIO); true }
       catch { case _: ZipException => false }
-      finally { if (zf != null) zf.close() }
+      finally { if zf != null then zf.close() }
     }
 
-    if (isZipFile) "application/zip"
-    else "application/octet-stream"
+    if isZipFile then "application/zip" else "application/octet-stream"
   }
 
   private def releaseId(
@@ -83,7 +79,6 @@ object Upload {
     ghProj:    String,
     ghToken:   String,
   ): Map[String, Long] = {
-
     val resp = quickRequest
       .header("Accept", "application/vnd.github.v3+json")
       .header("Authorization", s"token $ghToken")
@@ -126,23 +121,21 @@ object Upload {
     printChecksum: Boolean = true,
   )(uploads:       (os.Path, String)*
   ): Unit = {
-
     val releaseId0 = releaseId(ghOrg, ghProj, ghToken, tag)
 
-    val currentAssets0 = if (overwrite) currentAssets(releaseId0, ghOrg, ghProj, ghToken) else Map.empty[String, Long]
+    val currentAssets0 =
+      if overwrite then currentAssets(releaseId0, ghOrg, ghProj, ghToken) else Map.empty[String, Long]
 
     val extraAssets = currentAssets0.keySet.filterNot(uploads.map(_._2).toSet).toVector.sorted
 
-    if (extraAssets.nonEmpty) {
+    if extraAssets.nonEmpty then {
       System.err.println(s"Warning: found ${extraAssets.length} extra asset(s) that will not be overwritten:")
       for (assetName <- extraAssets)
         System.err.println(s"  $assetName")
     }
 
     for ((f0, name) <- uploads) {
-
-      if (printChecksum)
-        printChecksums(f0)
+      if printChecksum then printChecksums(f0)
 
       currentAssets0
         .get(name)
@@ -158,8 +151,7 @@ object Upload {
       val uri          = uri"https://uploads.github.com/repos/$ghOrg/$ghProj/releases/$releaseId0/assets?name=$name"
       val contentType0 = contentType(f0)
       System.err.println(s"Detected content type of $f0: $contentType0")
-      if (dryRun)
-        System.err.println(s"Would have uploaded $f0 as $name")
+      if dryRun then System.err.println(s"Would have uploaded $f0 as $name")
       else {
         System.err.println(s"Uploading $f0 as $name")
         quickRequest
@@ -181,15 +173,12 @@ object Upload {
       read = is.read(b)
       read >= 0
     })
-      if (read > 0)
-        md.update(b)
+      if read > 0 then md.update(b)
 
     val digest = md.digest()
     val res    = new BigInteger(1, digest).toString(16)
-    if (res.length < len)
-      ("0" * (len - res.length)) + res
-    else
-      res
+    if res.length < len then ("0" * (len - res.length)) + res
+    else res
   }
 
   private def checksum(f: os.Path, alg: String, len: Int): String = {
@@ -198,15 +187,12 @@ object Upload {
       is = os.read.inputStream(f)
       checksum(is, alg, len)
     } finally {
-      if (is != null)
-        is.close()
+      if is != null then is.close()
     }
   }
 
-  private def sha256(f: os.Path): String =
-    checksum(f, "SHA-256", 64)
-  private def sha1(f: os.Path): String =
-    checksum(f, "SHA-1", 40)
+  private def sha256(f: os.Path): String = checksum(f, "SHA-256", 64)
+  private def sha1(f:   os.Path): String = checksum(f, "SHA-1", 40)
 
   private def printChecksums(f: os.Path): Unit = {
     System.err.println(f.toString)
@@ -246,9 +232,9 @@ object Upload {
 
       zos.finish()
     } finally {
-      if (zos != null) zos.close()
-      if (fos != null) fos.close()
-      if (fis != null) fis.close()
+      if zos != null then zos.close()
+      if fos != null then fos.close()
+      if fis != null then fis.close()
     }
   }
 
@@ -281,20 +267,18 @@ object Upload {
     suffix:         String = "",
     printChecksums: Boolean = true,
   ): os.Path = {
-
-    if (printChecksums)
-      Upload.printChecksums(nativeLauncher)
+    if printChecksums then Upload.printChecksums(nativeLauncher)
 
     val path = os.Path(directory, workspace)
     val dest =
-      if (Properties.isWin && compress) {
+      if Properties.isWin && compress then {
         val dest0 = path / s"$name-$platformSuffix$suffix.zip"
         writeInZip(s"$name$platformExtension", nativeLauncher, dest0)
         dest0
       } else {
         val dest0 = path / s"$name-$platformSuffix$suffix$platformExtension"
         os.copy(nativeLauncher, dest0, createFolders = true, replaceExisting = true)
-        if (compress) {
+        if compress then {
           val compressedDest = path / s"$name-$platformSuffix$suffix.gz"
           var fis:  FileInputStream  = null
           var fos:  FileOutputStream = null
@@ -307,19 +291,17 @@ object Upload {
             readInto(fis, gzos)
             gzos.finish()
           } finally {
-            if (gzos != null) gzos.close()
-            if (fos != null) fos.close()
-            if (fis != null) fis.close()
+            if gzos != null then gzos.close()
+            if fos != null then fos.close()
+            if fis != null then fis.close()
           }
 
           os.remove(dest0)
           compressedDest
-        } else
-          dest0
+        } else dest0
       }
 
-    if (printChecksums)
-      Upload.printChecksums(dest)
+    if printChecksums then Upload.printChecksums(dest)
 
     dest
   }
