@@ -33,16 +33,15 @@ jobs:
       - uses: coursier/setup-action@v1
         with:
           jvm: 11
-#      TODO: re-enable once a version supporting Mill 1.0.0 is released
-#      - name: Compile example
-#        working-directory: example
-#        run: ./mill __.compile
-#      - name: Run example tests
-#        working-directory: example
-#        run: ./mill __.test
-#      - name: Generate example native image
-#        working-directory: example
-#        run: ./mill show hello.nativeImage
+      - name: Compile example
+        working-directory: example
+        run: ./mill __.compile
+      - name: Run example tests
+        working-directory: example
+        run: ./mill __.test
+      - name: Generate example native image
+        working-directory: example
+        run: ./mill show hello.nativeImage
 
   format:
     timeout-minutes: 15
