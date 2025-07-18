@@ -1,10 +1,10 @@
 //| mvnDeps:
-//| - io.github.alexarchambault.mill::mill-native-image::2.0.0
+//| - io.github.alexarchambault.mill::mill-native-image::0.2.0
 import mill.*, mill.scalalib.*
 import io.github.alexarchambault.millnativeimage.NativeImage
 
-object hello extends ScalaModule with NativeImage {
-  def scalaVersion = "3.3.6"
+object hello extends ScalaModule with NativeImage:
+  def scalaVersion = "3.7.1"
 
   def mvnDeps = Seq(
     mvn"dev.zio::zio:2.0.13",
@@ -43,14 +43,14 @@ object hello extends ScalaModule with NativeImage {
     "--initialize-at-run-time=io.netty.incubator.channel.uring.Native",
     "--initialize-at-run-time=io.netty.incubator.channel.uring.IOUring",
     "--initialize-at-run-time=io.netty.incubator.channel.uring.IOUringEventLoopGroup",
-  ) ++ (if (sys.props.get("os.name").contains("Linux")) Seq("--static") else Seq.empty)
+  ) ++ (if sys.props.get("os.name").contains("Linux") then Seq("--static") else Seq.empty)
 
   // If instead of creating a Native-Image binary for current host (Eg. MacOS)
   // you want to create a Docker image with the binary for Linux in a Docker container
   // you can use the following parameters and run `DOCKER_NATIVEIMAGE=1 mill hello.nativeImage`
   def isDockerBuild           = Task.Input(Task.ctx().env.get("DOCKER_NATIVEIMAGE") != None)
   def nativeImageDockerParams = Task {
-    if (isDockerBuild()) {
+    if isDockerBuild() then
       Some(
         NativeImage.DockerParams(
           imageName = "ubuntu:22.04",
@@ -64,13 +64,11 @@ object hello extends ScalaModule with NativeImage {
           extraNativeImageArgs = Nil,
         )
       )
-    } else { Option.empty[NativeImage.DockerParams] }
+    else Option.empty[NativeImage.DockerParams]
   }
 
-  object test extends ScalaTests with TestModule.ZioTest {
+  object test extends ScalaTests with TestModule.ZioTest:
     def mvnDeps = Seq(
       mvn"dev.zio::zio-test:2.0.13",
       mvn"dev.zio::zio-test-sbt:2.0.13",
     )
-  }
-}
