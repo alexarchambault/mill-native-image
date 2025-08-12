@@ -43,6 +43,12 @@ trait NativeImage extends Module {
     Properties.isWin && nativeImageDockerParams().isEmpty
   }
 
+  /**
+   * Setting this to false allows is equivalent to --no-filesystem-checker for
+   * native image generation
+   */
+  def generateNativeImageWithFileSystemChecker: Boolean = true
+
   def nativeImageScript(imageDest: String = ""): Task.Command[PathRef] = Task.Command {
     val imageDestOpt    = if imageDest.isEmpty then None else Some(os.Path(imageDest, BuildCtx.workspaceRoot))
     val cp              = nativeImageClassPath().map(_.path)
@@ -63,18 +69,19 @@ trait NativeImage extends Module {
     val actualDest = nativeImageDest / (nativeImageName() + platformExtension)
 
     val (command, tmpDestOpt, extraEnv) = generateNativeImage(
-      nativeImageCsCommand(),
-      nativeImageGraalVmJvmId(),
-      cp,
-      mainClass0,
-      dest,
-      nativeImageOptions(),
-      nativeImageDockerParams(),
-      nativeImageDockerWorkingDir(),
-      nativeImageUseManifest(),
-      Task.dest / "working-dir",
-      nativeImageUseJpms(),
+      csCommand = nativeImageCsCommand(),
+      jvmId = nativeImageGraalVmJvmId(),
+      classPath = cp,
+      mainClass = mainClass0,
+      dest = dest,
+      nativeImageOptions = nativeImageOptions(),
+      dockerParamsOpt = nativeImageDockerParams(),
+      dockerWorkingDir = nativeImageDockerWorkingDir(),
+      createManifest = nativeImageUseManifest(),
+      workingDir = Task.dest / "working-dir",
+      useJpms = nativeImageUseJpms(),
       workspace = BuildCtx.workspaceRoot,
+      withFilesystemChecker = generateNativeImageWithFileSystemChecker,
     )
 
     val scriptName = if Properties.isWin then "generate.bat" else "generate.sh"
@@ -142,7 +149,15 @@ trait NativeImage extends Module {
 
     val content = if Properties.isWin then batScript else bashScript
 
-    os.write.over(scriptPath, content.getBytes(Charset.defaultCharset()), createFolders = true)
+    def writeScript(): Unit =
+      os.write.over(scriptPath, content.getBytes(Charset.defaultCharset()), createFolders = true)
+
+    if generateNativeImageWithFileSystemChecker then writeScript()
+    else
+      BuildCtx.withFilesystemCheckerDisabled {
+        Task.log.info("nativeImageScript: skipping Mill file system checker and writing script")
+        writeScript()
+      }
 
     if !Properties.isWin then os.perms.set(scriptPath, "rwxr-xr-x")
 
@@ -170,18 +185,19 @@ trait NativeImage extends Module {
           )
         else {
           val (command, tmpDestOpt, extraEnv) = generateNativeImage(
-            nativeImageCsCommand(),
-            nativeImageGraalVmJvmId(),
-            cp,
-            mainClass0,
-            dest,
-            nativeImageOptions(),
-            nativeImageDockerParams(),
-            nativeImageDockerWorkingDir(),
-            nativeImageUseManifest(),
-            Task.dest / "working-dir",
-            nativeImageUseJpms(),
+            csCommand = nativeImageCsCommand(),
+            jvmId = nativeImageGraalVmJvmId(),
+            classPath = cp,
+            mainClass = mainClass0,
+            dest = dest,
+            nativeImageOptions = nativeImageOptions(),
+            dockerParamsOpt = nativeImageDockerParams(),
+            dockerWorkingDir = nativeImageDockerWorkingDir(),
+            createManifest = nativeImageUseManifest(),
+            workingDir = Task.dest / "working-dir",
+            useJpms = nativeImageUseJpms(),
             workspace = BuildCtx.workspaceRoot,
+            withFilesystemChecker = generateNativeImageWithFileSystemChecker,
           )
 
           val res = os.proc(command.map(x => x: os.Shellable)*).call(
@@ -204,18 +220,19 @@ trait NativeImage extends Module {
         val actualDest = Task.dest / (nativeImageName() + platformExtension)
 
         val (command, tmpDestOpt, extraEnv) = generateNativeImage(
-          nativeImageCsCommand(),
-          nativeImageGraalVmJvmId(),
-          cp,
-          mainClass0,
-          dest,
-          nativeImageOptions(),
-          nativeImageDockerParams(),
-          nativeImageDockerWorkingDir(),
-          nativeImageUseManifest(),
-          Task.dest / "working-dir",
-          nativeImageUseJpms(),
+          csCommand = nativeImageCsCommand(),
+          jvmId = nativeImageGraalVmJvmId(),
+          classPath = cp,
+          mainClass = mainClass0,
+          dest = dest,
+          nativeImageOptions = nativeImageOptions(),
+          dockerParamsOpt = nativeImageDockerParams(),
+          dockerWorkingDir = nativeImageDockerWorkingDir(),
+          createManifest = nativeImageUseManifest(),
+          workingDir = Task.dest / "working-dir",
+          useJpms = nativeImageUseJpms(),
           workspace = BuildCtx.workspaceRoot,
+          withFilesystemChecker = generateNativeImageWithFileSystemChecker,
         )
 
         val res = os.proc(command.map(x => x: os.Shellable)*).call(
@@ -337,18 +354,19 @@ object NativeImage {
   }
 
   def generateNativeImage(
-    csCommand:          Seq[String],
-    jvmId:              String,
-    classPath:          Seq[os.Path],
-    mainClass:          String,
-    dest:               os.Path,
-    nativeImageOptions: Seq[String],
-    dockerParamsOpt:    Option[DockerParams],
-    dockerWorkingDir:   os.Path,
-    createManifest:     Boolean,
-    workingDir:         os.Path,
-    useJpms:            Option[Boolean],
-    workspace:          os.Path,
+    csCommand:             Seq[String],
+    jvmId:                 String,
+    classPath:             Seq[os.Path],
+    mainClass:             String,
+    dest:                  os.Path,
+    nativeImageOptions:    Seq[String],
+    dockerParamsOpt:       Option[DockerParams],
+    dockerWorkingDir:      os.Path,
+    createManifest:        Boolean,
+    workingDir:            os.Path,
+    useJpms:               Option[Boolean],
+    workspace:             os.Path,
+    withFilesystemChecker: Boolean,
   ): (Seq[String], Option[os.Path], Map[String, String]) = {
 
     val graalVmHome = Option(System.getenv("GRAALVM_HOME")).getOrElse {
@@ -443,77 +461,94 @@ object NativeImage {
                  |if %errorlevel% neq 0 exit /b %errorlevel%
                  |${jpmsLine}@call ${escapedCommand.mkString(" ")}
                  |""".stripMargin
-            val scriptPath = workingDir / "run-native-image.bat"
-            os.write.over(scriptPath, script.getBytes, createFolders = true)
-            (Seq("cmd", "/c", scriptPath.toString), None, Map.empty[String, String])
+            val f = () => {
+              val scriptPath = workingDir / "run-native-image.bat"
+              os.write.over(scriptPath, script.getBytes, createFolders = true)
+              (Seq("cmd", "/c", scriptPath.toString), None, Map.empty[String, String])
+            }
+            if withFilesystemChecker then f()
+            else
+              BuildCtx.withFilesystemCheckerDisabled {
+                System.err.println("generateNativeImage: skipping Mill file system checker")
+                f()
+              }
         }
       else
         dockerParamsOpt match {
           case Some(params) =>
-            var entries = Set.empty[String]
-            val cpDir   = dockerWorkingDir / "cp"
-            if os.exists(cpDir) then os.remove.all(cpDir)
-            os.makeDir.all(cpDir)
-            val copiedCp = classPath.filter(os.exists(_)).map { f =>
-              val name =
-                if entries(f.last) then {
-                  var i           = 1
-                  val (base, ext) =
-                    if f.last.endsWith(".jar") then (f.last.stripSuffix(".jar"), ".jar") else (f.last, "")
-                  var candidate = ""
-                  while ({
-                    candidate = s"$base-$i$ext"
-                    entries(candidate)
-                  }) {
-                    i += 1
-                  }
-                  candidate
-                } else f.last
-              entries = entries + name
-              val dest = cpDir / name
-              os.copy(f, dest)
-              s"/data/cp/$name"
+            val f = () => {
+              var entries = Set.empty[String]
+              val cpDir   = dockerWorkingDir / "cp"
+              if os.exists(cpDir) then os.remove.all(cpDir)
+              os.makeDir.all(cpDir)
+              val copiedCp = classPath.filter(os.exists(_)).map { f =>
+                val name =
+                  if entries(f.last) then {
+                    var i           = 1
+                    val (base, ext) =
+                      if f.last.endsWith(".jar") then (f.last.stripSuffix(".jar"), ".jar") else (f.last, "")
+                    var candidate = ""
+                    while ({
+                      candidate = s"$base-$i$ext"
+                      entries(candidate)
+                    }) {
+                      i += 1
+                    }
+                    candidate
+                  } else f.last
+                entries = entries + name
+                val dest = cpDir / name
+                os.copy(f, dest)
+                s"/data/cp/$name"
+              }
+              val cp             = copiedCp.mkString(File.pathSeparator)
+              val escapedCommand =
+                command("native-image", params.extraNativeImageArgs, Some("/data"), "output", cp).map {
+                  case s if s.contains(" ") || s.contains("$") || s.contains("\"") || s.contains("'") =>
+                    "'" + s.replace("'", "\\'") + "'"
+                  case s => s
+                }
+              val jpmsLine = useJpms match {
+                case None    => ""
+                case Some(v) => s"export USE_NATIVE_IMAGE_JAVA_PLATFORM_MODULE_SYSTEM=$v" + System.lineSeparator()
+              }
+              val backTick = "\\"
+              val script   =
+                s"""#!/usr/bin/env bash
+                   |set -e
+                   |${params.prepareCommand}
+                   |${jpmsLine}eval "$$(/data/cs java --env --jvm "$jvmId" --jvm-index "$jvmIndex")"
+                   |native-image --help >/dev/null || gu install native-image
+                   |${escapedCommand.head}""".stripMargin + escapedCommand.drop(1).map("\\\n  " + _).mkString + "\n"
+              val scriptPath = dockerWorkingDir / "run-native-image.sh"
+              os.write.over(scriptPath, script, createFolders = true)
+              os.perms.set(scriptPath, "rwxr-xr-x")
+              val csPath = os.Path(os.proc(csCommand, "get", params.csUrl).call().out.text().trim)
+              if csPath.last.endsWith(".gz") then {
+                os.copy.over(csPath, dockerWorkingDir / "cs.gz")
+                os.proc("gzip", "-df", dockerWorkingDir / "cs.gz").call(stdout = os.Inherit)
+              } else os.copy.over(csPath, dockerWorkingDir / "cs")
+              os.perms.set(dockerWorkingDir / "cs", "rwxr-xr-x")
+              val termOpt   = if System.console() == null then Nil else Seq("-t")
+              val dockerCmd = Seq("docker", "run") ++ termOpt ++ Seq(
+                "--rm",
+                "-v",
+                s"$dockerWorkingDir:/data",
+                "-e",
+                "COURSIER_JVM_CACHE=/data/jvm-cache",
+                "-e",
+                "COURSIER_CACHE=/data/cs-cache",
+                params.imageName,
+                "/data/run-native-image.sh",
+              )
+              (dockerCmd, Some(dockerWorkingDir / "output"), Map.empty[String, String])
             }
-            val cp             = copiedCp.mkString(File.pathSeparator)
-            val escapedCommand = command("native-image", params.extraNativeImageArgs, Some("/data"), "output", cp).map {
-              case s if s.contains(" ") || s.contains("$") || s.contains("\"") || s.contains("'") =>
-                "'" + s.replace("'", "\\'") + "'"
-              case s => s
-            }
-            val jpmsLine = useJpms match {
-              case None    => ""
-              case Some(v) => s"export USE_NATIVE_IMAGE_JAVA_PLATFORM_MODULE_SYSTEM=$v" + System.lineSeparator()
-            }
-            val backTick = "\\"
-            val script   =
-              s"""#!/usr/bin/env bash
-                 |set -e
-                 |${params.prepareCommand}
-                 |${jpmsLine}eval "$$(/data/cs java --env --jvm "$jvmId" --jvm-index "$jvmIndex")"
-                 |native-image --help >/dev/null || gu install native-image
-                 |${escapedCommand.head}""".stripMargin + escapedCommand.drop(1).map("\\\n  " + _).mkString + "\n"
-            val scriptPath = dockerWorkingDir / "run-native-image.sh"
-            os.write.over(scriptPath, script, createFolders = true)
-            os.perms.set(scriptPath, "rwxr-xr-x")
-            val csPath = os.Path(os.proc(csCommand, "get", params.csUrl).call().out.text().trim)
-            if csPath.last.endsWith(".gz") then {
-              os.copy.over(csPath, dockerWorkingDir / "cs.gz")
-              os.proc("gzip", "-df", dockerWorkingDir / "cs.gz").call(stdout = os.Inherit)
-            } else os.copy.over(csPath, dockerWorkingDir / "cs")
-            os.perms.set(dockerWorkingDir / "cs", "rwxr-xr-x")
-            val termOpt   = if System.console() == null then Nil else Seq("-t")
-            val dockerCmd = Seq("docker", "run") ++ termOpt ++ Seq(
-              "--rm",
-              "-v",
-              s"$dockerWorkingDir:/data",
-              "-e",
-              "COURSIER_JVM_CACHE=/data/jvm-cache",
-              "-e",
-              "COURSIER_CACHE=/data/cs-cache",
-              params.imageName,
-              "/data/run-native-image.sh",
-            )
-            (dockerCmd, Some(dockerWorkingDir / "output"), Map.empty[String, String])
+            if withFilesystemChecker then f()
+            else
+              BuildCtx.withFilesystemCheckerDisabled {
+                System.err.println("generateNativeImage: skipping Mill file system checker")
+                f()
+              }
           case None =>
             default
         }
