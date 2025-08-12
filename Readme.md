@@ -9,7 +9,7 @@ The plugin allow build both natively in the current host (for example MacOS) or 
 To start using this plugin you'll have to include the following import in your `build.sc` file:
 
 ```scala
-import $ivy.`io.github.alexarchambault.mill::mill-native-image::0.1.26`
+import $ivy.`io.github.alexarchambault.mill::mill-native-image::0.2.1`
 import io.github.alexarchambault.millnativeimage.NativeImage
 ```
 
@@ -19,7 +19,7 @@ Sample configuration:
 
 ```scala
 import mill._, mill.scalalib._
-import $ivy.`io.github.alexarchambault.mill::mill-native-image::0.1.23`
+import $ivy.`io.github.alexarchambault.mill::mill-native-image::0.2.1`
 import io.github.alexarchambault.millnativeimage.NativeImage
 
 object hello extends ScalaModule with NativeImage {
