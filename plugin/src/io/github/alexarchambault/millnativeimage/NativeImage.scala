@@ -206,8 +206,16 @@ trait NativeImage extends Module {
             env = extraEnv,
             cwd = BuildCtx.workspaceRoot,
           )
-          if res.exitCode == 0 then tmpDestOpt.foreach(tmpDest => os.copy(tmpDest, dest))
-          else sys.error(s"native-image command exited with ${res.exitCode}")
+          if (res.exitCode == 0)
+            for (tmpDest <- tmpDestOpt)
+              if (generateNativeImageWithFileSystemChecker)
+                os.copy(tmpDest, dest)
+              else
+                BuildCtx.withFilesystemCheckerDisabled {
+                  os.copy(tmpDest, dest)
+                }
+          else
+            sys.error(s"native-image command exited with ${res.exitCode}")
         }
 
         PathRef(actualDest)
@@ -241,8 +249,16 @@ trait NativeImage extends Module {
           env = extraEnv,
           cwd = BuildCtx.workspaceRoot,
         )
-        if res.exitCode == 0 then tmpDestOpt.foreach(tmpDest => os.copy(tmpDest, dest))
-        else sys.error(s"native-image command exited with ${res.exitCode}")
+        if (res.exitCode == 0)
+          for (tmpDest <- tmpDestOpt)
+            if (generateNativeImageWithFileSystemChecker)
+              os.copy(tmpDest, dest)
+            else
+              BuildCtx.withFilesystemCheckerDisabled {
+                os.copy(tmpDest, dest)
+              }
+        else
+          sys.error(s"native-image command exited with ${res.exitCode}")
 
         PathRef(actualDest)
       }
