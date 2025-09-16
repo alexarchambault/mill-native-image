@@ -22,6 +22,31 @@ trait NativeImage extends Module {
     s"graalvm-java17:$defaultGraalVmVersion"
   }
 
+  /**
+   * GraalVM home directory - not used when generating images from docker
+   *
+   * Beware: only `nativeImageGraalVmJvmId` is used when generating images from
+   * docker, although this task is evaluated anyway.
+   */
+  def nativeImageGraalvmHome: T[PathRef] = Task {
+    val strPath = Task.env.get("GRAALVM_HOME").getOrElse {
+      os.proc(
+        nativeImageCsCommand(),
+        "java-home",
+        "--jvm",
+        nativeImageGraalVmJvmId(),
+        "--jvm-index",
+        jvmIndex,
+        "--update",
+        "--ttl",
+        "0",
+      )
+        .call()
+        .out.trim()
+    }
+    PathRef(os.Path(strPath), quick = true)
+  }
+
   def nativeImageClassPath: T[Seq[PathRef]]
   def nativeImageMainClass: T[String]
   def nativeImageOptions:   T[Seq[String]] = Task {
@@ -70,6 +95,7 @@ trait NativeImage extends Module {
 
     val (command, tmpDestOpt, extraEnv) = generateNativeImage(
       csCommand = nativeImageCsCommand(),
+      graalVmHome = nativeImageGraalvmHome().path,
       jvmId = nativeImageGraalVmJvmId(),
       classPath = cp,
       mainClass = mainClass0,
@@ -186,6 +212,7 @@ trait NativeImage extends Module {
         else {
           val (command, tmpDestOpt, extraEnv) = generateNativeImage(
             csCommand = nativeImageCsCommand(),
+            graalVmHome = nativeImageGraalvmHome().path,
             jvmId = nativeImageGraalVmJvmId(),
             classPath = cp,
             mainClass = mainClass0,
@@ -229,6 +256,7 @@ trait NativeImage extends Module {
 
         val (command, tmpDestOpt, extraEnv) = generateNativeImage(
           csCommand = nativeImageCsCommand(),
+          graalVmHome = nativeImageGraalvmHome().path,
           jvmId = nativeImageGraalVmJvmId(),
           classPath = cp,
           mainClass = mainClass0,
@@ -371,6 +399,7 @@ object NativeImage {
 
   def generateNativeImage(
     csCommand:             Seq[String],
+    graalVmHome:           os.Path,
     jvmId:                 String,
     classPath:             Seq[os.Path],
     mainClass:             String,
@@ -385,22 +414,17 @@ object NativeImage {
     withFilesystemChecker: Boolean,
   ): (Seq[String], Option[os.Path], Map[String, String]) = {
 
-    val graalVmHome = Option(System.getenv("GRAALVM_HOME")).getOrElse {
-      import sys.process.*
-      (csCommand ++ Seq("java-home", "--jvm", jvmId, "--jvm-index", jvmIndex, "--update", "--ttl", "0")).!!.trim
-    }
-
     val ext         = if Properties.isWin then ".cmd" else ""
-    val nativeImage = s"$graalVmHome/bin/native-image$ext"
+    val nativeImage = graalVmHome / "bin" / s"native-image$ext"
 
-    if !os.isFile(os.Path(nativeImage)) then {
-      val ret = os.proc(s"$graalVmHome/bin/gu$ext", "install", "native-image").call(
+    if !os.isFile(nativeImage) then {
+      val ret = os.proc(graalVmHome / "bin" / s"gu$ext", "install", "native-image").call(
         stdin = os.Inherit,
         stdout = os.Inherit,
       )
       if ret.exitCode != 0 then
         System.err.println(s"Warning: 'gu install native-image' exited with return code ${ret.exitCode}}")
-      if !os.isFile(os.Path(nativeImage)) then
+      if !os.isFile(nativeImage) then
         System.err.println(s"Warning: $nativeImage not found, and not installed by 'gu install native-image'")
     }
 
@@ -419,14 +443,14 @@ object NativeImage {
         classPath.map(_.toString).mkString(File.pathSeparator)
 
     def command(
-      nativeImage:          String,
+      nativeImage:          os.Path,
       extraNativeImageArgs: Seq[String],
       destDir:              Option[String],
       destName:             String,
       classPath:            String,
     ) = {
       val destDirOptions = destDir.toList.map(d => s"-H:Path=$d")
-      Seq(nativeImage) ++
+      Seq(nativeImage.toString) ++
         extraNativeImageArgs ++
         nativeImageOptions ++
         destDirOptions ++
