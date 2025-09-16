@@ -443,14 +443,14 @@ object NativeImage {
         classPath.map(_.toString).mkString(File.pathSeparator)
 
     def command(
-      nativeImage:          os.Path,
+      nativeImage:          String,
       extraNativeImageArgs: Seq[String],
       destDir:              Option[String],
       destName:             String,
       classPath:            String,
     ) = {
       val destDirOptions = destDir.toList.map(d => s"-H:Path=$d")
-      Seq(nativeImage.toString) ++
+      Seq(nativeImage) ++
         extraNativeImageArgs ++
         nativeImageOptions ++
         destDirOptions ++
@@ -466,7 +466,7 @@ object NativeImage {
       val relDest    = dest.relativeTo(workspace)
       val destDirOpt = if relDest.segments.length > 1 then Some((relDest / os.up).toString) else None
       val destName   = relDest.last
-      command(nativeImage, Nil, destDirOpt, destName, finalCp)
+      command(nativeImage.toString, Nil, destDirOpt, destName, finalCp)
     }
 
     def default: (Seq[String], Option[os.Path], Map[String, String]) = {
