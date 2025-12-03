@@ -85,7 +85,7 @@ trait UploadModule extends ScalaModule with MillNativeImagePublishModule {
     )
 
   override def mvnDeps: T[Seq[Dep]] = super.mvnDeps() ++ Seq(
-    mvn"com.softwaremill.sttp.client4::core:4.0.9"
+    mvn"com.softwaremill.sttp.client4::core:4.0.13"
   )
 }
 
