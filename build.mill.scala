@@ -61,7 +61,7 @@ trait MillNativeImagePublishModule extends SonatypeCentralPublishModule {
 }
 
 object Scala {
-  def version3: String = "3.7.1"
+  def version3: String = "3.7.4"
 }
 
 object Versions {
