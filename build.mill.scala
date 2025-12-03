@@ -64,6 +64,12 @@ object Scala {
   def version3: String = "3.7.1"
 }
 
+object Versions {
+  def osLib = "0.11.6"
+  def ujson = "4.4.1"
+  def sttp  = "4.0.13"
+}
+
 object plugin      extends Cross[PluginModule](millBinaryVersions)
 trait PluginModule extends Cross.Module[String] with ScalaModule with MillNativeImagePublishModule {
   def millBinaryVersion: String      = crossValue
@@ -80,12 +86,12 @@ trait UploadModule extends ScalaModule with MillNativeImagePublishModule {
   def scalaVersion:            T[String]   = Scala.version3
   override def compileMvnDeps: T[Seq[Dep]] =
     super.compileMvnDeps() ++ Seq(
-      mvn"com.lihaoyi::os-lib:0.11.6",
-      mvn"com.lihaoyi::ujson:4.4.1",
+      mvn"com.lihaoyi::os-lib:${Versions.osLib}",
+      mvn"com.lihaoyi::ujson:${Versions.ujson}",
     )
 
   override def mvnDeps: T[Seq[Dep]] = super.mvnDeps() ++ Seq(
-    mvn"com.softwaremill.sttp.client4::core:4.0.13"
+    mvn"com.softwaremill.sttp.client4::core:${Versions.sttp}"
   )
 }
 
