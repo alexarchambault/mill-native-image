@@ -29,22 +29,30 @@ trait NativeImage extends Module {
    * docker, although this task is evaluated anyway.
    */
   def nativeImageGraalvmHome: T[PathRef] = Task {
-    val strPath = Task.env.get("GRAALVM_HOME").getOrElse {
-      os.proc(
-        nativeImageCsCommand(),
-        "java-home",
-        "--jvm",
-        nativeImageGraalVmJvmId(),
-        "--jvm-index",
-        jvmIndex,
-        "--update",
-        "--ttl",
-        "0",
-      )
-        .call()
-        .out.trim()
+    val f = () => {
+      val strPath = Task.env.get("GRAALVM_HOME").getOrElse {
+        os.proc(
+          nativeImageCsCommand(),
+          "java-home",
+          "--jvm",
+          nativeImageGraalVmJvmId(),
+          "--jvm-index",
+          jvmIndex,
+          "--update",
+          "--ttl",
+          "0",
+        )
+          .call()
+          .out.trim()
+      }
+      PathRef(os.Path(strPath), quick = true)
     }
-    PathRef(os.Path(strPath), quick = true)
+    if generateNativeImageWithFileSystemChecker then f()
+    else
+      BuildCtx.withFilesystemCheckerDisabled {
+        System.err.println("nativeImageGraalvmHome: skipping Mill file system checker")
+        f()
+      }
   }
 
   def nativeImageClassPath: T[Seq[PathRef]]
