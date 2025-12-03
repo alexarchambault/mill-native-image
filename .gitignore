@@ -1,5 +1,11 @@
 out/
+dest/
+target/
 .bsp/
 .bloop/
 .metals/
 .vscode/
+.idea/
+.cursor/
+.scala-build
+*/scoverage.coverage
