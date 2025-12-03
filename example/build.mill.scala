@@ -1,10 +1,10 @@
 //| mvnDeps:
-//| - io.github.alexarchambault.mill::mill-native-image::0.2.0
+//| - io.github.alexarchambault.mill::mill-native-image::0.2.3
 import mill.*, mill.scalalib.*
 import io.github.alexarchambault.millnativeimage.NativeImage
 
 object hello extends ScalaModule with NativeImage:
-  def scalaVersion = "3.7.1"
+  def scalaVersion = "3.7.4"
 
   def mvnDeps = Seq(
     mvn"dev.zio::zio:2.0.13",
