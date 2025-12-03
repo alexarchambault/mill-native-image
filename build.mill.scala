@@ -81,7 +81,7 @@ trait UploadModule extends ScalaModule with MillNativeImagePublishModule {
   override def compileMvnDeps: T[Seq[Dep]] =
     super.compileMvnDeps() ++ Seq(
       mvn"com.lihaoyi::os-lib:0.11.6",
-      mvn"com.lihaoyi::ujson:4.2.1",
+      mvn"com.lihaoyi::ujson:4.4.1",
     )
 
   override def mvnDeps: T[Seq[Dep]] = super.mvnDeps() ++ Seq(
