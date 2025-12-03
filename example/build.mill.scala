@@ -1,5 +1,5 @@
 //| mvnDeps:
-//| - io.github.alexarchambault.mill::mill-native-image::0.2.3
+//| - io.github.alexarchambault.mill::mill-native-image::0.2.4
 import mill.*, mill.scalalib.*
 import io.github.alexarchambault.millnativeimage.NativeImage
 
