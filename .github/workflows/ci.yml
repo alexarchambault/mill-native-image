@@ -16,7 +16,7 @@ jobs:
         fetch-depth: 0
         submodules: true
     - uses: coursier/cache-action@v7.0
-    - uses: coursier/setup-action@v1
+    - uses: coursier/setup-action@v2
       with:
         jvm: 11
     - name: Compile
@@ -30,7 +30,7 @@ jobs:
           fetch-depth: 0
           submodules: true
       - uses: coursier/cache-action@v7.0
-      - uses: coursier/setup-action@v1
+      - uses: coursier/setup-action@v2
         with:
           jvm: 11
       - name: Compile example
@@ -67,7 +67,7 @@ jobs:
         fetch-depth: 0
         submodules: true
     - uses: coursier/cache-action@v7.0
-    - uses: coursier/setup-action@v1
+    - uses: coursier/setup-action@v2
       with:
         jvm: 11
     - run: .github/scripts/gpg-setup.sh
