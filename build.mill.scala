@@ -65,7 +65,7 @@ object Scala {
 }
 
 object Versions {
-  def osLib = "0.11.6"
+  def osLib = "0.11.8"
   def ujson = "4.4.1"
   def sttp  = "4.0.13"
 }
