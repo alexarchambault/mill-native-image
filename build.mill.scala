@@ -67,7 +67,7 @@ object Scala {
 object Versions {
   def osLib = "0.11.8"
   def ujson = "4.4.3"
-  def sttp  = "4.0.19"
+  def sttp  = "4.0.20"
 }
 
 object plugin      extends Cross[PluginModule](millBinaryVersions)
