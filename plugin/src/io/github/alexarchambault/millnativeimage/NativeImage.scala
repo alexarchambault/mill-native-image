@@ -198,7 +198,7 @@ trait NativeImage extends Module {
     PathRef(scriptPath)
   }
 
-  def writeNativeImageScript(scriptDest: String, imageDest: String): Task.Command[Unit] =
+  def writeNativeImageScript(scriptDest: String, imageDest: String = ""): Task.Command[Unit] =
     Task.Command {
       val scriptDest0 = os.Path(scriptDest, BuildCtx.workspaceRoot)
       val script      = nativeImageScript(imageDest)().path
