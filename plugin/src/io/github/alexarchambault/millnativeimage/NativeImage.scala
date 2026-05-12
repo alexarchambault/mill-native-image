@@ -369,7 +369,7 @@ object NativeImage {
   // should be the default index in the upcoming coursier release (> 2.0.16)
   def jvmIndex: String = "https://github.com/coursier/jvm-index/raw/master/index.json"
 
-  private def vcVersions:    Seq[String]      = Seq("2026", "2022", "2019", "2017")
+  private def vcVersions:    Seq[String]      = Seq("18", "2026", "2022", "2019", "2017")
   private def vcEditions:    Seq[String]      = Seq("Enterprise", "Community", "BuildTools")
   lazy val vcvarsCandidates: Iterable[String] = Option(System.getenv("VCVARSALL")) ++ {
     for {
