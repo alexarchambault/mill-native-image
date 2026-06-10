@@ -1,3 +1,4 @@
+//| mill-version: 1.1.6-104-5bbe1e
 //| mvnDeps:
 //| - com.lumidion::sonatype-central-client-requests:0.6.0
 import com.lumidion.sonatype.central.client.core.{PublishingType, SonatypeCredentials}
@@ -94,69 +95,3 @@ trait UploadModule extends ScalaModule with MillNativeImagePublishModule {
     mvn"com.softwaremill.sttp.client4::core:${Versions.sttp}"
   )
 }
-
-def publishSonatype(tasks: Tasks[PublishModule.PublishData]): Task.Command[Unit] =
-  Task.Command {
-    // TODO: include version string in the bundle name (shouldn't influence releases)
-    val bundleName = s"$publishOrg-$ghName"
-    System.err.println(s"Publishing bundle: $bundleName")
-
-    import scala.concurrent.duration._
-
-    val data = Task.sequence(tasks.value)()
-    val log  = Task.ctx().log
-
-    val credentials = SonatypeCredentials(
-      username = sys.env("SONATYPE_USERNAME"),
-      password = sys.env("SONATYPE_PASSWORD"),
-    )
-    val pgpPassword = sys.env("PGP_PASSPHRASE")
-    val timeout     = 10.minutes
-
-    System.err.println("Actual artifacts included in the bundle:")
-    val artifacts = data.map {
-      case PublishModule.PublishData(a, s) =>
-        System.err.println(s"  ${a.group}:${a.id}:${a.version}")
-        (s.map { case (p, f) => (p.path, f) }, a)
-    }
-
-    val isRelease = {
-      val versions = artifacts.map(_._2.version).toSet
-      val set      = versions.map(!_.endsWith("-SNAPSHOT"))
-      assert(
-        set.size == 1,
-        s"Found both snapshot and non-snapshot versions: ${versions.toVector.sorted.mkString(", ")}",
-      )
-      set.head
-    }
-    System.err.println(s"Is release: $isRelease")
-    val publisher = new SonatypeCentralPublisher(
-      credentials = credentials,
-      gpgArgs = Seq(
-        "--detach-sign",
-        "--batch=true",
-        "--yes",
-        "--pinentry-mode",
-        "loopback",
-        "--passphrase",
-        pgpPassword,
-        "--armor",
-        "--use-agent",
-      ),
-      readTimeout = timeout.toMillis.toInt,
-      connectTimeout = timeout.toMillis.toInt,
-      log = log,
-      workspace = BuildCtx.workspaceRoot,
-      env = sys.env,
-      awaitTimeout = timeout.toMillis.toInt,
-    )
-    val publishingType = if (isRelease) PublishingType.AUTOMATIC else PublishingType.USER_MANAGED
-    System.err.println(s"Publishing type: $publishingType")
-    val finalBundleName = if (bundleName.nonEmpty) Some(bundleName) else None
-    System.err.println(s"Final bundle name: $finalBundleName")
-    publisher.publishAll(
-      publishingType = publishingType,
-      singleBundleName = finalBundleName,
-      artifacts = artifacts*,
-    )
-  }

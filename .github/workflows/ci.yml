@@ -56,10 +56,6 @@ jobs:
 
   publish:
     if: github.event_name == 'push' && github.repository == 'alexarchambault/mill-native-image'
-    needs:
-      - test
-      - test-example
-      - format
     runs-on: ubuntu-latest
     steps:
     - uses: actions/checkout@v6
@@ -69,14 +65,11 @@ jobs:
     - uses: coursier/cache-action@v8.1
     - uses: coursier/setup-action@v3
       with:
-        jvm: 11
-    - run: .github/scripts/gpg-setup.sh
-      env:
-        PGP_SECRET: ${{ secrets.PUBLISH_SECRET_KEY }}
+        jvm: 21
     - name: Release
-      run: |
-        ./mill publishSonatype --tasks __.publishArtifacts
+      run: ./mill -i mill.scalalib.SonatypeCentralPublishModule/
       env:
-        PGP_PASSPHRASE: ${{ secrets.PUBLISH_SECRET_KEY_PASSWORD }}
-        SONATYPE_PASSWORD: ${{ secrets.SONATYPE_PASSWORD }}
-        SONATYPE_USERNAME: ${{ secrets.SONATYPE_USERNAME }}
+        MILL_PGP_SECRET_BASE64: ${{ secrets.PUBLISH_SECRET_KEY }}
+        MILL_PGP_PASSPHRASE: ${{ secrets.PUBLISH_SECRET_KEY_PASSWORD }}
+        MILL_SONATYPE_USERNAME: ${{ secrets.SONATYPE_USERNAME }}
+        MILL_SONATYPE_PASSWORD: ${{ secrets.SONATYPE_PASSWORD }}
