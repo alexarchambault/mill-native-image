@@ -14,6 +14,7 @@ trait NativeImage extends Module {
   def nativeImageUseJpms: T[Option[Boolean]] =
     Task(None)
 
+  @deprecated("Not used anymore by mill-native-image", "0.2.6")
   def nativeImageCsCommand: T[Seq[String]] = Task {
     Seq(systemCs)
   }
@@ -31,19 +32,20 @@ trait NativeImage extends Module {
   def nativeImageGraalvmHome: T[PathRef] = Task {
     val f = () => {
       val strPath = Task.env.get("GRAALVM_HOME").getOrElse {
-        os.proc(
-          nativeImageCsCommand(),
-          "java-home",
-          "--jvm",
-          nativeImageGraalVmJvmId(),
-          "--jvm-index",
-          jvmIndex,
-          "--update",
-          "--ttl",
-          "0",
-        )
-          .call()
-          .out.trim()
+        import coursier.cache.{ArchiveCache, FileCache}
+        import coursier.jvm.{JavaHome => CsJavaHome, JvmCache}
+        import coursier.util.{Task => CsTask}
+        import scala.concurrent.duration.Duration
+
+        val csCache      = FileCache[CsTask]().withTtl(Duration.Zero)
+        val archiveCache = ArchiveCache().withCache(csCache)
+        val jvmCache     = JvmCache().withArchiveCache(archiveCache).withIndex(jvmIndex)
+        val javaHome     = CsJavaHome().withCache(jvmCache).withUpdate(true)
+        javaHome.get(nativeImageGraalVmJvmId())
+          .unsafeRun(wrapExceptions = true)(
+            using csCache.ec
+          )
+          .getAbsolutePath
       }
       PathRef(os.Path(strPath), quick = true)
     }
@@ -102,7 +104,6 @@ trait NativeImage extends Module {
     val actualDest = nativeImageDest / (nativeImageName() + platformExtension)
 
     val (command, tmpDestOpt, extraEnv) = generateNativeImage(
-      csCommand = nativeImageCsCommand(),
       graalVmHome = nativeImageGraalvmHome().path,
       jvmId = nativeImageGraalVmJvmId(),
       classPath = cp,
@@ -219,7 +220,6 @@ trait NativeImage extends Module {
           )
         else {
           val (command, tmpDestOpt, extraEnv) = generateNativeImage(
-            csCommand = nativeImageCsCommand(),
             graalVmHome = nativeImageGraalvmHome().path,
             jvmId = nativeImageGraalVmJvmId(),
             classPath = cp,
@@ -263,7 +263,6 @@ trait NativeImage extends Module {
         val actualDest = Task.dest / (nativeImageName() + platformExtension)
 
         val (command, tmpDestOpt, extraEnv) = generateNativeImage(
-          csCommand = nativeImageCsCommand(),
           graalVmHome = nativeImageGraalvmHome().path,
           jvmId = nativeImageGraalVmJvmId(),
           classPath = cp,
@@ -336,6 +335,7 @@ object NativeImage {
   def linuxMostlyStaticParams(): DockerParams =
     linuxMostlyStaticParams(defaultLinuxMostlyStaticDockerImage, csLinuxX86_64Url("2.0.16"))
 
+  @deprecated("Not used anymore by mill-native-image", "0.2.6")
   lazy val systemCs: String =
     if Properties.isWin then {
       val pathExt = Option(System.getenv("PATHEXT"))
@@ -407,7 +407,6 @@ object NativeImage {
   }
 
   def generateNativeImage(
-    csCommand:             Seq[String],
     graalVmHome:           os.Path,
     jvmId:                 String,
     classPath:             Seq[os.Path],
@@ -572,7 +571,16 @@ object NativeImage {
               val scriptPath = dockerWorkingDir / "run-native-image.sh"
               os.write.over(scriptPath, script, createFolders = true)
               os.perms.set(scriptPath, "rwxr-xr-x")
-              val csPath = os.Path(os.proc(csCommand, "get", params.csUrl).call().out.text().trim)
+              import coursier.cache.FileCache
+              import coursier.util.{Artifact, Task => CsTask}
+              val csFileCache = FileCache[CsTask]()
+              val csPath      = os.Path(
+                csFileCache.file(Artifact.fromUrl(params.csUrl)).run
+                  .unsafeRun(wrapExceptions = true)(
+                    using csFileCache.ec
+                  )
+                  .fold(e => throw e, _.getAbsolutePath)
+              )
               if csPath.last.endsWith(".gz") then {
                 os.copy.over(csPath, dockerWorkingDir / "cs.gz")
                 os.proc("gzip", "-df", dockerWorkingDir / "cs.gz").call(stdout = os.Inherit)
