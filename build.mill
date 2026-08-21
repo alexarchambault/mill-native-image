@@ -1,4 +1,4 @@
-//| mill-version: 1.1.6-104-5bbe1e
+//| mill-version: 1.1.8
 //| mvnDeps:
 //| - com.lumidion::sonatype-central-client-requests:0.6.0
 import com.lumidion.sonatype.central.client.core.{PublishingType, SonatypeCredentials}
