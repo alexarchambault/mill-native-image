@@ -300,7 +300,7 @@ trait NativeImage extends Module {
 
 }
 
-object NativeImage {
+object NativeImage extends NativeImageCompat {
   def defaultGraalVmVersion: String = "22.3.0"
 
   def defaultLinuxStaticDockerImage: String =
@@ -442,13 +442,13 @@ object NativeImage {
         val manifest   = new Manifest
         val attributes = manifest.getMainAttributes
         attributes.put(Attributes.Name.MANIFEST_VERSION, "1.0")
-        attributes.put(Attributes.Name.CLASS_PATH, classPath.map(_.toIO.getAbsolutePath).mkString(" "))
+        attributes.put(Attributes.Name.CLASS_PATH, classPath.map(absPath).mkString(" "))
         val jarFile = File.createTempFile("classpathJar", ".jar")
         val jos     = new JarOutputStream(new java.io.FileOutputStream(jarFile), manifest)
         jos.close()
         jarFile.getAbsolutePath
       } else
-        classPath.map(_.toString).mkString(File.pathSeparator)
+        classPath.map(absPath).mkString(File.pathSeparator)
 
     def command(
       nativeImage:          String,
@@ -471,10 +471,10 @@ object NativeImage {
     }
 
     def defaultCommand: Seq[String] = {
-      val relDest    = dest.relativeTo(workspace)
-      val destDirOpt = if relDest.segments.length > 1 then Some((relDest / os.up).toString) else None
-      val destName   = relDest.last
-      command(nativeImage.toString, Nil, destDirOpt, destName, finalCp)
+      val absDest    = absNioPath(dest).normalize
+      val destDirOpt = Option(absDest.getParent).map(_.toString)
+      val destName   = absDest.getFileName.toString
+      command(absPath(nativeImage), Nil, destDirOpt, destName, finalCp)
     }
 
     def default: (Seq[String], Option[os.Path], Map[String, String]) = {
@@ -512,7 +512,7 @@ object NativeImage {
             val f = () => {
               val scriptPath = workingDir / "run-native-image.bat"
               os.write.over(scriptPath, script.getBytes, createFolders = true)
-              (Seq("cmd", "/c", scriptPath.toString), None, Map.empty[String, String])
+              (Seq("cmd", "/c", absPath(scriptPath)), None, Map.empty[String, String])
             }
             if withFilesystemChecker then f()
             else
@@ -590,7 +590,7 @@ object NativeImage {
               val dockerCmd = Seq("docker", "run") ++ termOpt ++ Seq(
                 "--rm",
                 "-v",
-                s"$dockerWorkingDir:/data",
+                s"${absPath(dockerWorkingDir)}:/data",
                 "-e",
                 "COURSIER_JVM_CACHE=/data/jvm-cache",
                 "-e",
