@@ -67,7 +67,15 @@ jobs:
       with:
         jvm: 21
     - name: Release
-      run: ./mill -i mill.scalalib.SonatypeCentralPublishModule/
+      run: |
+        if [[ "$GITHUB_REF" == refs/tags/* ]]; then
+          ./mill -i mill.scalalib.SonatypeCentralPublishModule/ --bundleName "mill-native-image-${GITHUB_REF#refs/tags/v}"
+        else
+          for tag in $(git tag --points-at HEAD); do
+            git tag -d "$tag"
+          done
+          ./mill -i mill.scalalib.SonatypeCentralPublishModule/
+        fi
       env:
         MILL_PGP_SECRET_BASE64: ${{ secrets.PUBLISH_SECRET_KEY }}
         MILL_PGP_PASSPHRASE: ${{ secrets.PUBLISH_SECRET_KEY_PASSWORD }}

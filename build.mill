@@ -6,7 +6,7 @@ import mill.*
 import mill.api.{Task, *}
 import scalalib.*
 import publish.*
-import mill.util.{Tasks, VcsVersion}
+import mill.util.{Jvm, Tasks}
 
 import scala.util.Try
 
@@ -35,27 +35,29 @@ trait MillNativeImagePublishModule extends SonatypeCentralPublishModule {
       Developer("alexarchambault", "Alex Archambault", "https://github.com/alexarchambault")
     ),
   )
-  def publishVersion: T[String] = Task {
-    val state = VcsVersion.vcsState()
-    if state.commitsSinceLastTag > 0 then {
-      val versionOrEmpty = state.lastTag
-        .filter(_ != "latest")
-        .map(_.stripPrefix("v"))
-        .flatMap { tag =>
-          val idx = tag.lastIndexOf(".")
-          if idx >= 0 then
-            Some(tag.take(idx + 1) + (tag.drop(idx + 1).takeWhile(_.isDigit).toInt + 1).toString + "-SNAPSHOT")
-          else None
-        }
-        .getOrElse("0.0.1-SNAPSHOT")
-      Some(versionOrEmpty)
+  /** Version derived from the `v*` Git tags */
+  def publishVersion: T[String] = Task.Input {
+    def git(args: String*): Option[String] =
+      Try(os.call(("git", args), cwd = BuildCtx.workspaceRoot, stderr = os.Pipe).out.trim())
+        .toOption
         .filter(_.nonEmpty)
-        .getOrElse(state.format())
-    } else
-      state
-        .lastTag
-        .getOrElse(state.format())
-        .stripPrefix("v")
+
+    // if HEAD is tagged, use that tag, else bump the patch version of the latest tag, as a snapshot
+    git("describe", "--exact-match", "--tags", "--match", "v*", "HEAD")
+      .map(_.stripPrefix("v"))
+      .getOrElse {
+        val previous = git("describe", "--abbrev=0", "--tags", "--match", "v*")
+          .map(_.stripPrefix("v"))
+          .getOrElse("0.0.0")
+        val elems    = previous.split('.').take(3)
+        val bumped   = elems.init :+ (elems.last.takeWhile(_.isDigit).toInt + 1).toString
+        bumped.mkString(".") + "-SNAPSHOT"
+      }
+  }
+
+  /** Empty javadoc JAR (only a manifest inside it) - we don't publish any API documentation */
+  override def docJar: T[PathRef] = Task {
+    PathRef(Jvm.createJar(Task.dest / "out.jar", Seq(), manifest()))
   }
 }
 
