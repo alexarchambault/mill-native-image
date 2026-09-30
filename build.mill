@@ -1,12 +1,9 @@
 //| mill-version: 1.1.10
-//| mvnDeps:
-//| - com.lumidion::sonatype-central-client-requests:0.6.0
-import com.lumidion.sonatype.central.client.core.{PublishingType, SonatypeCredentials}
 import mill.*
 import mill.api.{Task, *}
 import scalalib.*
 import publish.*
-import mill.util.{Jvm, Tasks}
+import mill.util.Jvm
 
 import scala.util.Try
 
