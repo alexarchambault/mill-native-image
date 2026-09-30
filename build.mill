@@ -10,12 +10,11 @@ import mill.util.{Jvm, Tasks}
 
 import scala.util.Try
 
-val millVersions = Seq("1.0.0", "1.2.0-RC1") // scala-steward:off
+val millVersions = Seq("1.0.0", "2.0.0-M2") // scala-steward:off
 val millBinaryVersions:                     Seq[String] = millVersions.map(millBinaryVersion)
 def millBinaryVersion(millVersion: String): String      =
   millVersion.split("\\.") match {
     case Array(major, minor, _*) if Try(major.toInt < 1).getOrElse(false) => s"$major.$minor"
-    case Array("1", "2", _*)                                              => "1.2"
     case Array(major, _*)                                                 => major
   }
 
@@ -66,8 +65,8 @@ trait MillNativeImagePublishModule extends SonatypeCentralPublishModule {
 }
 
 object Scala {
-  def version3:       String = "3.7.4"
-  def version3Mill12: String = "3.8.4"
+  def version3:      String = "3.7.4"
+  def version3Mill2: String = "3.9.0"
 }
 
 object Versions {
@@ -81,7 +80,7 @@ trait PluginModule extends Cross.Module[String] with ScalaModule with MillNative
   def millBinaryVersion: String    = crossValue
   def artifactName:      T[String] = s"mill-native-image_mill$millBinaryVersion"
   def scalaVersion:      T[String] =
-    if millBinaryVersion == "1.2" then Scala.version3Mill12 else Scala.version3
+    if millBinaryVersion == "2" then Scala.version3Mill2 else Scala.version3
   override def sourcesFolders: Seq[os.SubPath] =
     super.sourcesFolders ++ Seq(os.sub / s"src-mill$millBinaryVersion")
   def compileMvnDeps: T[Seq[Dep]] = super.compileMvnDeps() ++ Seq(

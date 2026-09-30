@@ -5,7 +5,7 @@ import java.nio.file as jnio
 private[millnativeimage] trait NativeImageCompat {
 
   /**
-   * Lexically-absolute on-disk path. Mill 1.2 serializes `os.Path.toString` /
+   * Lexically-absolute on-disk path. Mill 2 serializes `os.Path.toString` /
    * `.toIO` / `.toNIO` as `../mill-workspace/...` aliases that only resolve
    * from a task dest; docker, native-image, and `cmd` need a real path.
    */
