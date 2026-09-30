@@ -35,6 +35,7 @@ trait MillNativeImagePublishModule extends SonatypeCentralPublishModule {
       Developer("alexarchambault", "Alex Archambault", "https://github.com/alexarchambault")
     ),
   )
+
   /** Version derived from the `v*` Git tags */
   def publishVersion: T[String] = Task.Input {
     def git(args: String*): Option[String] =
@@ -49,13 +50,16 @@ trait MillNativeImagePublishModule extends SonatypeCentralPublishModule {
         val previous = git("describe", "--abbrev=0", "--tags", "--match", "v*")
           .map(_.stripPrefix("v"))
           .getOrElse("0.0.0")
-        val elems    = previous.split('.').take(3)
-        val bumped   = elems.init :+ (elems.last.takeWhile(_.isDigit).toInt + 1).toString
+        val elems  = previous.split('.').take(3)
+        val bumped = elems.init :+ (elems.last.takeWhile(_.isDigit).toInt + 1).toString
         bumped.mkString(".") + "-SNAPSHOT"
       }
   }
 
-  /** Empty javadoc JAR (only a manifest inside it) - we don't publish any API documentation */
+  /**
+   * Empty javadoc JAR (only a manifest inside it) - we don't publish any API
+   * documentation
+   */
   override def docJar: T[PathRef] = Task {
     PathRef(Jvm.createJar(Task.dest / "out.jar", Seq(), manifest()))
   }
@@ -69,14 +73,14 @@ object Scala {
 object Versions {
   def osLib = "0.11.8"
   def ujson = "4.4.3"
-  def sttp  = "4.0.26"
+  def sttp  = "4.0.27"
 }
 
 object plugin      extends Cross[PluginModule](millBinaryVersions)
 trait PluginModule extends Cross.Module[String] with ScalaModule with MillNativeImagePublishModule {
-  def millBinaryVersion: String                = crossValue
-  def artifactName:      T[String]             = s"mill-native-image_mill$millBinaryVersion"
-  def scalaVersion:      T[String]             =
+  def millBinaryVersion: String    = crossValue
+  def artifactName:      T[String] = s"mill-native-image_mill$millBinaryVersion"
+  def scalaVersion:      T[String] =
     if millBinaryVersion == "1.2" then Scala.version3Mill12 else Scala.version3
   override def sourcesFolders: Seq[os.SubPath] =
     super.sourcesFolders ++ Seq(os.sub / s"src-mill$millBinaryVersion")
