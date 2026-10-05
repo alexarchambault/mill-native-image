@@ -178,12 +178,15 @@ object Upload {
         .get(name)
         .filter(_ => overwrite)
         .foreach { assetId =>
-          val resp = quickRequest
-            .header("Accept", "application/vnd.github.v3+json")
-            .header("Authorization", s"token $ghToken")
-            .delete(uri"https://api.github.com/repos/$ghOrg/$ghProj/releases/assets/$assetId")
-            .send()
-          checkResponse(resp, s"Deleting asset $name (id $assetId)")
+          if dryRun then System.err.println(s"Would have deleted asset $name (id $assetId)")
+          else {
+            val resp = quickRequest
+              .header("Accept", "application/vnd.github.v3+json")
+              .header("Authorization", s"token $ghToken")
+              .delete(uri"https://api.github.com/repos/$ghOrg/$ghProj/releases/assets/$assetId")
+              .send()
+            checkResponse(resp, s"Deleting asset $name (id $assetId)")
+          }
         }
 
       val uri          = uri"https://uploads.github.com/repos/$ghOrg/$ghProj/releases/$releaseId0/assets?name=$name"
