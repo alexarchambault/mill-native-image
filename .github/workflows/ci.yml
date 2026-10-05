@@ -35,9 +35,15 @@ jobs:
       - uses: coursier/setup-action@v3
         with:
           jvm: 11
+      - name: Publish plugin locally
+        run: ./mill -i 'plugin[1].publishLocal'
+      - name: Use the locally published plugin in the example
+        run: .github/scripts/use-local-plugin-in-example.sh
       - name: Compile example
         working-directory: example
         run: ./mill __.compile
+      - name: Check the example uses the locally published plugin
+        run: .github/scripts/check-example-uses-local-plugin.sh
       - name: Run example tests
         working-directory: example
         run: ./mill __.test
