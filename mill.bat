@@ -2,7 +2,7 @@
 
 setlocal enabledelayedexpansion
 
-if [!DEFAULT_MILL_VERSION!]==[] ( set "DEFAULT_MILL_VERSION=1.1.6-104-5bbe1e" )
+if [!DEFAULT_MILL_VERSION!]==[] ( set "DEFAULT_MILL_VERSION=1.1.10" )
 
 if [!MILL_GITHUB_RELEASE_CDN!]==[] ( set "MILL_GITHUB_RELEASE_CDN=" )
 
