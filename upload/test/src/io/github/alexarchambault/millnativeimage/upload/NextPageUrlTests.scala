@@ -7,10 +7,11 @@ object NextPageUrlTests extends ZIOSpecDefault {
   def spec = suite("Upload.nextPageUrl")(
     test("finds the next page among other links") {
       val header =
-        """<https://api.github.com/repositories/1/releases?per_page=100&page=1>; rel="prev", """ +
-          """<https://api.github.com/repositories/1/releases?per_page=100&page=3>; rel="next", """ +
-          """<https://api.github.com/repositories/1/releases?per_page=100&page=5>; rel="last", """ +
-          """<https://api.github.com/repositories/1/releases?per_page=100&page=1>; rel="first""""
+        """<https://api.github.com/repositories/1/releases?per_page=100&page=1>; rel="prev",
+          |<https://api.github.com/repositories/1/releases?per_page=100&page=3>; rel="next",
+          |<https://api.github.com/repositories/1/releases?per_page=100&page=5>; rel="last",
+          |<https://api.github.com/repositories/1/releases?per_page=100&page=1>; rel="first"
+          |""".stripMargin.linesIterator.mkString(" ")
       assertTrue(
         Upload.nextPageUrl(header).contains("https://api.github.com/repositories/1/releases?per_page=100&page=3")
       )
