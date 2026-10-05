@@ -6,10 +6,11 @@ The plugin allow build both natively in the current host (for example MacOS) or 
 
 ## Installing
 
-To start using this plugin you'll have to include the following import in your `build.sc` file:
+To start using this plugin you'll have to add it to the dependencies of your build, in the header of your `build.mill` file, and import it:
 
 ```scala
-import $ivy.`io.github.alexarchambault.mill::mill-native-image::0.2.1`
+//| mvnDeps:
+//| - io.github.alexarchambault.mill::mill-native-image::0.2.7
 import io.github.alexarchambault.millnativeimage.NativeImage
 ```
 
@@ -18,13 +19,15 @@ import io.github.alexarchambault.millnativeimage.NativeImage
 Sample configuration:
 
 ```scala
-import mill._, mill.scalalib._
-import $ivy.`io.github.alexarchambault.mill::mill-native-image::0.2.1`
+//| mill-version: 1.1.10
+//| mvnDeps:
+//| - io.github.alexarchambault.mill::mill-native-image::0.2.7
+import mill.*, mill.scalalib.*
 import io.github.alexarchambault.millnativeimage.NativeImage
 
 object hello extends ScalaModule with NativeImage {
-  def scalaVersion = "3.3.0-RC2"
-  def ivyDeps = ... // Your deps here
+  def scalaVersion = "3.9.0"
+  def mvnDeps = ... // Your deps here
 
   def nativeImageName         = "hello"
   def nativeImageMainClass    = "com.domain.Main.MainApp"
@@ -36,7 +39,7 @@ object hello extends ScalaModule with NativeImage {
     "-Djdk.http.auth.tunneling.disabledSchemes=",
   ) ++ (if (sys.props.get("os.name").contains("Linux")) Seq("--static") else Seq.empty)
 
-  object test extends Tests {
+  object test extends ScalaTests {
     // ...
   }
 }
@@ -76,19 +79,21 @@ In the example below, there is a task that checks if the `DOCKER_NATIVEIMAGE` is
 ```scala
 object hello extends ScalaModule with NativeImage {
   ...
-  def isDockerBuild = Task.Input(Task.ctx.env.get("DOCKER_NATIVEIMAGE") != None)
+  def isDockerBuild = Task.Input(Task.ctx().env.get("DOCKER_NATIVEIMAGE") != None)
+  // Docker builds write to the nativeImageDockerWorkingDir folder, which Mill's file system checker forbids
+  override def generateNativeImageWithFileSystemChecker = false
   def nativeImageDockerParams = Task {
     if (isDockerBuild()) {
       Some(
         NativeImage.DockerParams(
-          imageName = "ubuntu:28.04",
+          imageName = "ubuntu:24.04",
           prepareCommand = """apt-get update -q -y &&\
                              |apt-get install -q -y build-essential libz-dev locales --no-install-recommends
                              |locale-gen en_US.UTF-8
                              |export LANG=en_US.UTF-8
                              |export LANGUAGE=en_US:en
                              |export LC_ALL=en_US.UTF-8""".stripMargin,
-          csUrl = s"https://github.com/coursier/coursier/releases/download/v2.1.2/cs-x86_64-pc-linux.gz",
+          csUrl = s"https://github.com/coursier/coursier/releases/download/v2.1.26/cs-x86_64-pc-linux.gz",
           extraNativeImageArgs = Nil,
         ),
       )
