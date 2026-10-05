@@ -2,7 +2,6 @@ package com.domain.Main
 
 import zio.*
 import zio.http.*
-import zio.http.Method
 
 object MainApp extends ZIOAppDefault:
   val port        = 8080
@@ -13,7 +12,7 @@ object MainApp extends ZIOAppDefault:
       Server.serve(RootRoute()).provide(configLayer, Server.live)
 
 object RootRoute:
-  def apply(): Http[Any, Nothing, Request, Response] =
-    Http.collectZIO[Request] { case Method.GET -> !! =>
-      ZIO.succeed(Response.text("Hello World!"))
-    }
+  def apply(): Routes[Any, Response] =
+    Routes(
+      Method.GET / Root -> handler(Response.text("Hello World!"))
+    )

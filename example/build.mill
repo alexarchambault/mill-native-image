@@ -7,8 +7,8 @@ object hello extends ScalaModule with NativeImage:
   def scalaVersion = "3.9.0"
 
   def mvnDeps = Seq(
-    mvn"dev.zio::zio:2.0.13",
-    mvn"dev.zio::zio-http:3.0.0-RC1",
+    mvn"dev.zio::zio:2.1.26",
+    mvn"dev.zio::zio-http:3.11.6",
   )
 
   def nativeImageName = "hello"
@@ -17,7 +17,7 @@ object hello extends ScalaModule with NativeImage:
 
   def nativeImageClassPath = runClasspath()
 
-  def nativeImageGraalVmJvmId = "graalvm-java17:22.3.1"
+  def nativeImageGraalVmJvmId = "graalvm-java21:21.0.2"
 
   // GraalVM parameters needed by ZIO and ZIO-http
   def nativeImageOptions = Seq(
@@ -43,6 +43,8 @@ object hello extends ScalaModule with NativeImage:
     "--initialize-at-run-time=io.netty.incubator.channel.uring.Native",
     "--initialize-at-run-time=io.netty.incubator.channel.uring.IOUring",
     "--initialize-at-run-time=io.netty.incubator.channel.uring.IOUringEventLoopGroup",
+    "--initialize-at-run-time=io.netty.pkitesting",
+    "--initialize-at-run-time=io.netty.handler.ssl.JdkSslServerContext",
   ) ++ (if sys.props.get("os.name").contains("Linux") then Seq("--static") else Seq.empty)
 
   // If instead of creating a Native-Image binary for current host (Eg. MacOS)
@@ -69,6 +71,6 @@ object hello extends ScalaModule with NativeImage:
 
   object test extends ScalaTests with TestModule.ZioTest:
     def mvnDeps = Seq(
-      mvn"dev.zio::zio-test:2.0.13",
-      mvn"dev.zio::zio-test-sbt:2.0.13",
+      mvn"dev.zio::zio-test:2.1.26",
+      mvn"dev.zio::zio-test-sbt:2.1.26",
     )

@@ -6,12 +6,12 @@ import zio.test.*
 
 object HelloWorldSpec extends ZIOSpecDefault:
 
-  val rootroute: Http[Any, Nothing, Request, Response] = RootRoute()
+  val rootroute: Routes[Any, Response] = RootRoute()
 
   def spec = suite("Main application")(
     test("root route should return text string") {
       for
-        response <- rootroute.runZIO(Request.get(URL(!!)))
+        response <- rootroute.runZIO(Request.get(URL.root))
         body     <- response.body.asString
       yield assertTrue(
         response.status == Status.Ok,
