@@ -19,13 +19,14 @@ import io.github.alexarchambault.millnativeimage.NativeImage
 Sample configuration:
 
 ```scala
+//| mill-version: 1.1.10
 //| mvnDeps:
 //| - io.github.alexarchambault.mill::mill-native-image::0.2.7
 import mill.*, mill.scalalib.*
 import io.github.alexarchambault.millnativeimage.NativeImage
 
 object hello extends ScalaModule with NativeImage {
-  def scalaVersion = "3.7.4"
+  def scalaVersion = "3.9.0"
   def mvnDeps = ... // Your deps here
 
   def nativeImageName         = "hello"
