@@ -80,18 +80,20 @@ In the example below, there is a task that checks if the `DOCKER_NATIVEIMAGE` is
 object hello extends ScalaModule with NativeImage {
   ...
   def isDockerBuild = Task.Input(Task.ctx().env.get("DOCKER_NATIVEIMAGE") != None)
+  // Docker builds write to the nativeImageDockerWorkingDir folder, which Mill's file system checker forbids
+  override def generateNativeImageWithFileSystemChecker = false
   def nativeImageDockerParams = Task {
     if (isDockerBuild()) {
       Some(
         NativeImage.DockerParams(
-          imageName = "ubuntu:22.04",
+          imageName = "ubuntu:24.04",
           prepareCommand = """apt-get update -q -y &&\
                              |apt-get install -q -y build-essential libz-dev locales --no-install-recommends
                              |locale-gen en_US.UTF-8
                              |export LANG=en_US.UTF-8
                              |export LANGUAGE=en_US:en
                              |export LC_ALL=en_US.UTF-8""".stripMargin,
-          csUrl = s"https://github.com/coursier/coursier/releases/download/v2.1.2/cs-x86_64-pc-linux.gz",
+          csUrl = s"https://github.com/coursier/coursier/releases/download/v2.1.26/cs-x86_64-pc-linux.gz",
           extraNativeImageArgs = Nil,
         ),
       )
