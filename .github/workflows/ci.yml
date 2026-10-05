@@ -21,6 +21,8 @@ jobs:
         jvm: 11
     - name: Compile
       run: ./mill __.compile
+    - name: Test
+      run: ./mill __.test
 
   test-example:
     runs-on: ubuntu-latest

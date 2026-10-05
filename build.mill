@@ -70,6 +70,7 @@ object Versions {
   def osLib = "0.11.8"
   def ujson = "4.4.3"
   def sttp  = "4.0.27"
+  def zio   = "2.1.24"
 }
 
 object plugin      extends Cross[PluginModule](millBinaryVersions)
@@ -98,4 +99,14 @@ trait UploadModule extends ScalaModule with MillNativeImagePublishModule {
   override def mvnDeps: T[Seq[Dep]] = super.mvnDeps() ++ Seq(
     mvn"com.softwaremill.sttp.client4::core:${Versions.sttp}"
   )
+
+  object test extends ScalaTests with TestModule.ZioTest {
+    // os-lib and ujson are compile-only in the main module (Mill provides them at runtime)
+    override def mvnDeps: T[Seq[Dep]] = super.mvnDeps() ++ Seq(
+      mvn"com.lihaoyi::os-lib:${Versions.osLib}",
+      mvn"com.lihaoyi::ujson:${Versions.ujson}",
+      mvn"dev.zio::zio-test:${Versions.zio}",
+      mvn"dev.zio::zio-test-sbt:${Versions.zio}",
+    )
+  }
 }
