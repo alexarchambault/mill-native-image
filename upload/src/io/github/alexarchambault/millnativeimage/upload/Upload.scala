@@ -1,6 +1,8 @@
 package io.github.alexarchambault.millnativeimage.upload
 
+import sttp.client4.Response
 import sttp.client4.quick.*
+import sttp.model.{StatusCode, Uri}
 
 import java.io.*
 import java.math.BigInteger
@@ -39,33 +41,76 @@ object Upload {
     if isZipFile then "application/zip" else "application/octet-stream"
   }
 
+  private def checkResponse(resp: Response[String], action: => String): Unit =
+    if !resp.code.isSuccess then sys.error(s"$action failed (HTTP ${resp.code.code}): ${resp.body}")
+
+  /**
+   * Extracts the URL of the next page from the value of a `Link` HTTP header,
+   * as returned by the GitHub API for paginated endpoints, like
+   * `<https://…?page=2>; rel="next", <https://…?page=5>; rel="last"`
+   */
+  private[upload] def nextPageUrl(linkHeader: String): Option[String] = {
+    val linkRegex = """<([^>]*)>([^,]*)""".r
+    val relRegex  = """(?i)rel\s*=\s*"?([^";]*)"?""".r
+    linkRegex
+      .findAllMatchIn(linkHeader)
+      .collectFirst {
+        case m if relRegex.findAllMatchIn(m.group(2)).exists(_.group(1).trim.split("\\s+").contains("next")) =>
+          m.group(1)
+      }
+  }
+
+  /**
+   * GETs all the pages of a paginated GitHub API endpoint returning a JSON
+   * array
+   */
+  private def getAllPages(url: Uri, ghToken: String): Vector[ujson.Value] = {
+    val b       = Vector.newBuilder[ujson.Value]
+    var nextUrl = Option(url)
+    while (nextUrl.nonEmpty) {
+      val url0 = nextUrl.get
+      val resp = quickRequest
+        .header("Accept", "application/vnd.github.v3+json")
+        .header("Authorization", s"token $ghToken")
+        .get(url0)
+        .send()
+      checkResponse(resp, s"GET $url0")
+      b ++= ujson.read(resp.body).arr
+      nextUrl = resp.header("Link").flatMap(nextPageUrl).map(Uri.unsafeParse)
+    }
+    b.result()
+  }
+
   private def releaseId(
     ghOrg:   String,
     ghProj:  String,
     ghToken: String,
     tag:     String,
   ): Long = {
-    val url  = uri"https://api.github.com/repos/$ghOrg/$ghProj/releases"
+    val url  = uri"https://api.github.com/repos/$ghOrg/$ghProj/releases/tags/$tag"
     val resp = quickRequest
+      .header("Accept", "application/vnd.github.v3+json")
       .header("Authorization", s"token $ghToken")
       .get(url)
       .send()
 
-    val json      = ujson.read(resp.body)
     val releaseId =
-      try {
-        json
-          .arr
+      if resp.code == StatusCode.NotFound then
+        // this endpoint doesn't return draft releases, so we look for those in the full release list
+        getAllPages(uri"https://api.github.com/repos/$ghOrg/$ghProj/releases?per_page=100", ghToken)
           .find(_("tag_name").str == tag)
           .map(_("id").num.toLong)
           .getOrElse {
-            val tags = json.arr.map(_("tag_name").str).toVector
-            sys.error(s"Tag $tag not found (found tags: ${tags.mkString(", ")}")
+            sys.error(s"No release found for tag $tag in $ghOrg/$ghProj")
           }
-      } catch {
-        case NonFatal(e) =>
-          System.err.println(resp.body)
-          throw e
+      else {
+        checkResponse(resp, s"Getting release for tag $tag in $ghOrg/$ghProj")
+        try ujson.read(resp.body)("id").num.toLong
+        catch {
+          case NonFatal(e) =>
+            System.err.println(resp.body)
+            throw e
+        }
       }
 
     System.err.println(s"Release id is $releaseId")
@@ -78,21 +123,13 @@ object Upload {
     ghOrg:     String,
     ghProj:    String,
     ghToken:   String,
-  ): Map[String, Long] = {
-    val resp = quickRequest
-      .header("Accept", "application/vnd.github.v3+json")
-      .header("Authorization", s"token $ghToken")
-      .get(uri"https://api.github.com/repos/$ghOrg/$ghProj/releases/$releaseId/assets")
-      .send()
-    val json = ujson.read(resp.body)
-    json
-      .arr
+  ): Map[String, Long] =
+    getAllPages(uri"https://api.github.com/repos/$ghOrg/$ghProj/releases/$releaseId/assets?per_page=100", ghToken)
       .iterator
       .map { obj =>
         obj("name").str -> obj("id").num.toLong
       }
       .toMap
-  }
 
   /**
    * Uploads files as GitHub release assets.
@@ -146,6 +183,7 @@ object Upload {
             .header("Authorization", s"token $ghToken")
             .delete(uri"https://api.github.com/repos/$ghOrg/$ghProj/releases/assets/$assetId")
             .send()
+          checkResponse(resp, s"Deleting asset $name (id $assetId)")
         }
 
       val uri          = uri"https://uploads.github.com/repos/$ghOrg/$ghProj/releases/$releaseId0/assets?name=$name"
@@ -154,12 +192,13 @@ object Upload {
       if dryRun then System.err.println(s"Would have uploaded $f0 as $name")
       else {
         System.err.println(s"Uploading $f0 as $name")
-        quickRequest
+        val resp = quickRequest
           .body(f0.toNIO)
           .header("Authorization", s"token $ghToken")
           .header("Content-Type", contentType0)
           .post(uri)
           .send()
+        checkResponse(resp, s"Uploading $f0 as $name")
       }
     }
   }
