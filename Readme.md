@@ -32,7 +32,7 @@ object hello extends ScalaModule with NativeImage {
   def nativeImageName         = "hello"
   def nativeImageMainClass    = "com.domain.Main.MainApp"
   def nativeImageClassPath    = runClasspath()
-  def nativeImageGraalVmJvmId = "graalvm-java17:22.3.1"
+  def nativeImageGraalVmJvmId = "graalvm-community:25"
   def nativeImageOptions = Seq(
     "--no-fallback",
     "--enable-url-protocols=http,https",
@@ -44,6 +44,13 @@ object hello extends ScalaModule with NativeImage {
   }
 }
 ```
+
+`nativeImageGraalVmJvmId` accepts any GraalVM JVM ID from the [coursier JVM index](https://github.com/coursier/jvm-index),
+and defaults to `graalvm-community:25`. Specifying only a major version, like in `graalvm-community:25`, picks the latest
+patch version of that GraalVM release. mill-native-image is tested against the latest patch version of the GraalVM
+releases corresponding to Java LTS versions (`graalvm-community:17`, `graalvm-community:21`, `graalvm-community:25`).
+Older GraalVM releases (22.3.x and earlier, using the former GraalVM versioning scheme and requiring
+`gu install native-image`) aren't supported anymore.
 
 This will build an executable suited for the current host platform (Eg. an Intel MacOS):
 
