@@ -20,7 +20,7 @@ trait NativeImage extends Module {
   }
 
   def nativeImageGraalVmJvmId: T[String] = Task {
-    s"graalvm-java17:$defaultGraalVmVersion"
+    s"graalvm-community:$defaultGraalVmVersion"
   }
 
   /**
@@ -147,9 +147,12 @@ trait NativeImage extends Module {
         }
         .mkString
 
+      // native-image doesn't create the parent directory of its output itself
+      val mkdirLine = s"mkdir -p $q${absPath(nativeImageDest)}$q" + System.lineSeparator()
+
       s"""#!/usr/bin/env bash
          |set -e
-         |$envLines${command.map(a => q + a.replace(q, "\\" + q) + q).mkString(" ")}
+         |$mkdirLine$envLines${command.map(a => q + a.replace(q, "\\" + q) + q).mkString(" ")}
          |""".stripMargin + extra0 + extra1
     }
 
@@ -178,7 +181,11 @@ trait NativeImage extends Module {
         }
         .mkString
 
-      s"""${envLines}@call ${command.map(a => q + a.replace(q, "\\" + q) + q).mkString(" ")}
+      // native-image doesn't create the parent directory of its output itself
+      val mkdirLine = s"if not exist $q${absPath(nativeImageDest)}$q md $q${absPath(nativeImageDest)}$q" +
+        System.lineSeparator()
+
+      s"""$mkdirLine${envLines}@call ${command.map(a => q + a.replace(q, "\\" + q) + q).mkString(" ")}
          |""".stripMargin + extra0 + extra1
     }
 
@@ -301,7 +308,7 @@ trait NativeImage extends Module {
 }
 
 object NativeImage extends NativeImageCompat {
-  def defaultGraalVmVersion: String = "22.3.0"
+  def defaultGraalVmVersion: String = "25"
 
   def defaultLinuxStaticDockerImage: String =
     "messense/rust-musl-cross@sha256:12d0dd535ef7364bf49cb2608ae7eaf60e40d07834eb4d9160c592422a08d3b3"
@@ -425,17 +432,6 @@ object NativeImage extends NativeImageCompat {
     val ext         = if Properties.isWin then ".cmd" else ""
     val nativeImage = graalVmHome / "bin" / s"native-image$ext"
 
-    if !os.isFile(nativeImage) then {
-      val ret = os.proc(graalVmHome / "bin" / s"gu$ext", "install", "native-image").call(
-        stdin = os.Inherit,
-        stdout = os.Inherit,
-      )
-      if ret.exitCode != 0 then
-        System.err.println(s"Warning: 'gu install native-image' exited with return code ${ret.exitCode}}")
-      if !os.isFile(nativeImage) then
-        System.err.println(s"Warning: $nativeImage not found, and not installed by 'gu install native-image'")
-    }
-
     val finalCp =
       if createManifest then {
         import java.util.jar.*
@@ -453,29 +449,22 @@ object NativeImage extends NativeImageCompat {
     def command(
       nativeImage:          String,
       extraNativeImageArgs: Seq[String],
-      destDir:              Option[String],
-      destName:             String,
+      dest:                 String,
       classPath:            String,
-    ) = {
-      val destDirOptions = destDir.toList.map(d => s"-H:Path=$d")
+    ) =
       Seq(nativeImage) ++
         extraNativeImageArgs ++
         nativeImageOptions ++
-        destDirOptions ++
         Seq(
-          s"-H:Name=$destName",
+          "-o",
+          dest,
           "-cp",
           classPath,
           mainClass,
         )
-    }
 
-    def defaultCommand: Seq[String] = {
-      val absDest    = absNioPath(dest).normalize
-      val destDirOpt = Option(absDest.getParent).map(_.toString)
-      val destName   = absDest.getFileName.toString
-      command(absPath(nativeImage), Nil, destDirOpt, destName, finalCp)
-    }
+    def defaultCommand: Seq[String] =
+      command(absPath(nativeImage), Nil, absPath(dest), finalCp)
 
     def default: (Seq[String], Option[os.Path], Map[String, String]) = {
       val extraEnv = useJpms match {
@@ -551,7 +540,7 @@ object NativeImage extends NativeImageCompat {
               }
               val cp             = copiedCp.mkString(File.pathSeparator)
               val escapedCommand =
-                command("native-image", params.extraNativeImageArgs, Some("/data"), "output", cp).map {
+                command("native-image", params.extraNativeImageArgs, "/data/output", cp).map {
                   case s if s.contains(" ") || s.contains("$") || s.contains("\"") || s.contains("'") =>
                     "'" + s.replace("'", "\\'") + "'"
                   case s => s
@@ -566,7 +555,6 @@ object NativeImage extends NativeImageCompat {
                    |set -e
                    |${params.prepareCommand}
                    |${jpmsLine}eval "$$(/data/cs java --env --jvm "$jvmId" --jvm-index "$jvmIndex")"
-                   |native-image --help >/dev/null || gu install native-image
                    |${escapedCommand.head}""".stripMargin + escapedCommand.drop(1).map("\\\n  " + _).mkString + "\n"
               val scriptPath = dockerWorkingDir / "run-native-image.sh"
               os.write.over(scriptPath, script, createFolders = true)

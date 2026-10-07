@@ -84,6 +84,25 @@ trait PluginModule extends Cross.Module[String] with ScalaModule with MillNative
   def compileMvnDeps: T[Seq[Dep]] = super.compileMvnDeps() ++ Seq(
     mvn"com.lihaoyi::mill-libs-scalalib:${millVersion(millBinaryVersion)}"
   )
+
+  object test extends ScalaTests with TestModule.ZioTest {
+    // mill-libs-scalalib is compile-only in the main module (Mill provides it at runtime)
+    def mvnDeps = super.mvnDeps() ++ Seq(
+      mvn"com.lihaoyi::mill-libs-scalalib:${millVersion(millBinaryVersion)}",
+      mvn"com.lihaoyi::mill-testkit:${millVersion(millBinaryVersion)}",
+      mvn"dev.zio::zio-test:${Versions.zio}",
+      mvn"dev.zio::zio-test-sbt:${Versions.zio}",
+    )
+    def forkEnv = super.forkEnv() ++ Seq(
+      "MILL_NATIVE_IMAGE_TEST_APP" -> `test-app`.jar().path.toString
+    )
+  }
+}
+
+/** Tiny application, built as a native image by the plugin tests */
+object `test-app` extends JavaModule {
+  // the oldest GraalVM version we test is based on Java 17
+  def javacOptions = super.javacOptions() ++ Seq("--release", "17")
 }
 
 object upload      extends UploadModule

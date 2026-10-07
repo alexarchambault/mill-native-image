@@ -15,14 +15,35 @@ jobs:
       with:
         fetch-depth: 0
         submodules: true
-    - uses: coursier/cache-action@v8.1
+    - uses: coursier/cache-action@v8
     - uses: coursier/setup-action@v3
       with:
         jvm: 11
     - name: Compile
       run: ./mill __.compile
     - name: Test
-      run: ./mill __.test
+      run: ./mill upload.test
+
+  # Builds native images with the GraalVM versions corresponding to Java LTS versions
+  # (see NativeImageTests.graalVmJvmIds)
+  test-plugin:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        mill: ["1", "2"]
+    name: test-plugin (Mill ${{ matrix.mill }})
+    steps:
+    - uses: actions/checkout@v7
+      with:
+        fetch-depth: 0
+        submodules: true
+    - uses: coursier/cache-action@v8
+    - uses: coursier/setup-action@v3
+      with:
+        jvm: 11
+    - name: Test
+      run: ./mill 'plugin[${{ matrix.mill }}].test'
 
   test-example:
     runs-on: ubuntu-latest
@@ -31,7 +52,7 @@ jobs:
         with:
           fetch-depth: 0
           submodules: true
-      - uses: coursier/cache-action@v8.1
+      - uses: coursier/cache-action@v8
       - uses: coursier/setup-action@v3
         with:
           jvm: 11
@@ -77,7 +98,7 @@ jobs:
       with:
         fetch-depth: 0
         submodules: true
-    - uses: coursier/cache-action@v8.1
+    - uses: coursier/cache-action@v8
     - uses: coursier/setup-action@v3
       with:
         jvm: 21
