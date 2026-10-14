@@ -50,10 +50,10 @@ object hello extends ScalaModule with NativeImage:
   // If instead of creating a Native-Image binary for current host (Eg. MacOS)
   // you want to create a Docker image with the binary for Linux in a Docker container
   // you can use the following parameters and run `DOCKER_NATIVEIMAGE=1 mill hello.nativeImage`
-  def isDockerBuild           = Task.Input(Task.ctx().env.get("DOCKER_NATIVEIMAGE") != None)
+  def isDockerBuild = Task.Input(Task.ctx().env.get("DOCKER_NATIVEIMAGE") != None)
   // Docker builds write to the nativeImageDockerWorkingDir folder, which Mill's file system checker forbids
   override def generateNativeImageWithFileSystemChecker = false
-  def nativeImageDockerParams = Task {
+  def nativeImageDockerParams                           = Task {
     if isDockerBuild() then
       Some(
         NativeImage.DockerParams(
@@ -73,6 +73,6 @@ object hello extends ScalaModule with NativeImage:
 
   object test extends ScalaTests with TestModule.ZioTest:
     def mvnDeps = Seq(
-      mvn"dev.zio::zio-test:2.1.26",
-      mvn"dev.zio::zio-test-sbt:2.1.26",
+      mvn"dev.zio::zio-test:2.1.27",
+      mvn"dev.zio::zio-test-sbt:2.1.27",
     )
