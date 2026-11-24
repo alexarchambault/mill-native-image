@@ -17,7 +17,7 @@ object ClassPathJarTests extends ZIOSpecDefault {
   }
 
   def entries(classPath: Seq[os.Path]): Seq[String] =
-    NativeImage.classPathManifestValue(classPath).split(' ').toSeq
+    NativeImage.classPathManifestValue(classPath, useUris = true).split(' ').toSeq
 
   def roundTrips(classPath: Seq[os.Path]): TestResult = {
     val entries0 = entries(classPath)
@@ -73,16 +73,72 @@ object ClassPathJarTests extends ZIOSpecDefault {
           os.write(jar, "", createFolders = true)
           os.makeDir.all(classesDir)
           val cp     = Seq(jar, classesDir)
-          val cpJar  = NativeImage.writeClassPathJar(cp, dir / "sub" / "classpath.jar")
+          val cpJar  = NativeImage.writeClassPathJar(cp, dir / "sub" / "classpath.jar", useUris = true)
           val cpAttr = Using.resource(new JarFile(cpJar.toIO)) { jf =>
             jf.getManifest.getMainAttributes.getValue(Attributes.Name.CLASS_PATH)
           }
           assertTrue(
             cpJar == dir / "sub" / "classpath.jar",
-            cpAttr == NativeImage.classPathManifestValue(cp),
+            cpAttr == NativeImage.classPathManifestValue(cp, useUris = true),
           ) && roundTrips(cp)
         }
       }
     },
+    test("plain paths for older GraalVM versions") {
+      ZIO.attemptBlocking {
+        withTmpDir { dir =>
+          val cp = Seq(dir / "a.jar", dir / "classes")
+          assertTrue(
+            NativeImage.classPathManifestValue(cp, useUris = false) ==
+              cp.map(NativeImage.absPath).mkString(" ")
+          )
+        }
+      }
+    },
+    suite("GraalVM version")(
+      test("read from GRAALVM_VERSION") {
+        def release(version: String) =
+          s"""IMPLEMENTOR="GraalVM Community"
+             |JAVA_RUNTIME_VERSION="25.0.5.0.3+1-jvmci-25.5-b26"
+             |GRAALVM_VERSION="$version"
+             |""".stripMargin
+        assertTrue(
+          NativeImage.graalVmVersion(release("25.5.5.0.3")) == Some((25, 5)),
+          NativeImage.graalVmVersion(release("23.1.2")) == Some((23, 1)),
+          NativeImage.graalVmVersion(release("25.0.2")) == Some((25, 0)),
+        )
+      },
+      test("read from the JVMCI version as a fallback") {
+        val release =
+          """IMPLEMENTOR="GraalVM Community"
+            |JAVA_RUNTIME_VERSION="21.0.2+13-jvmci-23.1-b30"
+            |""".stripMargin
+        assertTrue(
+          NativeImage.graalVmVersion(release) == Some((23, 1)),
+          NativeImage.graalVmVersion("JAVA_RUNTIME_VERSION=\"25.0.2+10-jvmci-b01\"").isEmpty,
+          NativeImage.graalVmVersion("").isEmpty,
+        )
+      },
+      test("URIs from GraalVM 25.5 on") {
+        ZIO.attemptBlocking {
+          withTmpDir { dir =>
+            def usesUris(release: Option[String]) = {
+              os.remove(dir / "release")
+              release.foreach(os.write(dir / "release", _))
+              NativeImage.manifestClassPathUsesUris(dir)
+            }
+            def graalVm(version: String) = Some(s"GRAALVM_VERSION=\"$version\"")
+            // evaluated eagerly, as assertTrue evaluates its arguments after the temporary directory is removed
+            val withUris = Seq("25.5.5.0.3", "25.6.5.1", "26.0.0")
+              .filterNot(v => usesUris(graalVm(v)))
+            val withoutUris =
+              (Seq("25.4.4.1.1", "25.0.2", "23.1.2").map(graalVm) ++
+                Seq(Some("IMPLEMENTOR=\"Other\""), None))
+                .filter(usesUris)
+            assertTrue(withUris.isEmpty, withoutUris.isEmpty)
+          }
+        }
+      },
+    ),
   )
 }

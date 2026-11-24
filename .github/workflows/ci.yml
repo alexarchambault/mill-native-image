@@ -52,6 +52,13 @@ jobs:
       if: runner.os == 'Windows'
       shell: cmd
       run: .\mill.bat "plugin[${{ matrix.mill }}].test"
+      env:
+        # Keep the paths of the GraalVM files short: with the default archive cache location,
+        # some GraalVM header paths go beyond 260 characters, and MSVC fails to include them
+        COURSIER_ARCHIVE_CACHE: C:\cs-arc
+        # Prevents vcvarsall from leaving a telemetry process running in the test directories,
+        # which prevents their deletion
+        VSCMD_SKIP_SENDTELEMETRY: "1"
 
   test-example:
     runs-on: ubuntu-latest
