@@ -27,12 +27,13 @@ jobs:
   # Builds native images with the GraalVM versions corresponding to Java LTS versions
   # (see NativeImageTests.graalVmJvmIds)
   test-plugin:
-    runs-on: ubuntu-latest
+    runs-on: ${{ matrix.os }}
     strategy:
       fail-fast: false
       matrix:
+        os: ["ubuntu-latest", "windows-latest"]
         mill: ["1", "2"]
-    name: test-plugin (Mill ${{ matrix.mill }})
+    name: test-plugin (${{ matrix.os }}, Mill ${{ matrix.mill }})
     steps:
     - uses: actions/checkout@v7
       with:
@@ -43,7 +44,14 @@ jobs:
       with:
         jvm: 11
     - name: Test
+      if: runner.os != 'Windows'
       run: ./mill 'plugin[${{ matrix.mill }}].test'
+    # native-image needs MSVC on Windows, which the plugin finds via vcvarsall
+    # (Visual Studio is installed on GitHub's Windows runners)
+    - name: Test (Windows)
+      if: runner.os == 'Windows'
+      shell: cmd
+      run: .\mill.bat "plugin[${{ matrix.mill }}].test"
 
   test-example:
     runs-on: ubuntu-latest
