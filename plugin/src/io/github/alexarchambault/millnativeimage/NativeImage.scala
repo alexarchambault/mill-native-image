@@ -79,6 +79,16 @@ trait NativeImage extends Module {
   }
 
   /**
+   * Whether to write the `Class-Path` entries of the manifest JAR (see
+   * `nativeImageUseManifest`) as file URIs (`file:///D:/foo/bar.jar`), rather
+   * than plain paths (`D:\foo\bar.jar`). If empty, this is inferred from the
+   * GraalVM version, see `NativeImage.manifestClassPathUsesUris`.
+   */
+  def nativeImageManifestUseUris: T[Option[Boolean]] = Task {
+    Option.empty[Boolean]
+  }
+
+  /**
    * Setting this to false allows is equivalent to --no-filesystem-checker for
    * native image generation
    */
@@ -113,6 +123,7 @@ trait NativeImage extends Module {
       dockerParamsOpt = nativeImageDockerParams(),
       dockerWorkingDir = nativeImageDockerWorkingDir(),
       createManifest = nativeImageUseManifest(),
+      manifestUseUris = nativeImageManifestUseUris(),
       workingDir = Task.dest / "working-dir",
       useJpms = nativeImageUseJpms(),
       workspace = BuildCtx.workspaceRoot,
@@ -236,6 +247,7 @@ trait NativeImage extends Module {
             dockerParamsOpt = nativeImageDockerParams(),
             dockerWorkingDir = nativeImageDockerWorkingDir(),
             createManifest = nativeImageUseManifest(),
+            manifestUseUris = nativeImageManifestUseUris(),
             workingDir = Task.dest / "working-dir",
             useJpms = nativeImageUseJpms(),
             workspace = BuildCtx.workspaceRoot,
@@ -279,6 +291,7 @@ trait NativeImage extends Module {
           dockerParamsOpt = nativeImageDockerParams(),
           dockerWorkingDir = nativeImageDockerWorkingDir(),
           createManifest = nativeImageUseManifest(),
+          manifestUseUris = nativeImageManifestUseUris(),
           workingDir = Task.dest / "working-dir",
           useJpms = nativeImageUseJpms(),
           workspace = BuildCtx.workspaceRoot,
@@ -413,6 +426,95 @@ object NativeImage extends NativeImageCompat {
     implicit val codec: upickle.default.ReadWriter[DockerParams] = upickle.default.macroRW[DockerParams]
   }
 
+  /**
+   * Whether the `native-image` of the GraalVM distribution at `graalVmHome`
+   * parses the manifest `Class-Path` entries as URIs, like the JAR spec says.
+   *
+   * Since GraalVM 25.5, `native-image` reads them with `URI.create`, and
+   * silently ignores invalid ones, like plain Windows paths. Before that, it
+   * reads them with `Path.of`, and fails on URIs on Windows.
+   *
+   * This reads the GraalVM version from the `release` file of the distribution,
+   * and returns false if it can't find it.
+   */
+  def manifestClassPathUsesUris(graalVmHome: os.Path): Boolean = {
+    val releaseFile = graalVmHome / "release"
+    val content     =
+      if os.isFile(releaseFile) then os.read(releaseFile)
+      else ""
+    graalVmVersion(content).exists {
+      case (major, minor) =>
+        major > 25 || (major == 25 && minor >= 5)
+    }
+  }
+
+  /**
+   * GraalVM major and minor versions, read from the content of the `release`
+   * file of a GraalVM distribution
+   */
+  def graalVmVersion(releaseFileContent: String): Option[(Int, Int)] = {
+    val props = releaseFileContent
+      .linesIterator
+      .map(_.split("=", 2))
+      .collect {
+        case Array(k, v) => k.trim -> v.trim.stripPrefix("\"").stripSuffix("\"")
+      }
+      .toMap
+    val MajorMinor = """(\d+)\.(\d+)(?:\D.*)?""".r
+    def majorMinor(version: String): Option[(Int, Int)] =
+      version match {
+        case MajorMinor(major, minor) => Some((major.toInt, minor.toInt))
+        case _                        => None
+      }
+    // GRAALVM_VERSION="25.5.5.0.3", or, as a fallback,
+    // JAVA_RUNTIME_VERSION="25.0.5.0.3+1-jvmci-25.5-b26"
+    val JvmciVersion = """.*-jvmci-(\d+\.\d+)-.*""".r
+    props.get("GRAALVM_VERSION").flatMap(majorMinor).orElse {
+      props.get("JAVA_RUNTIME_VERSION")
+        .collect { case JvmciVersion(v) => v }
+        .flatMap(majorMinor)
+    }
+  }
+
+  /**
+   * Value of the `Class-Path` manifest attribute for the given class path.
+   *
+   * Per the JAR spec, `Class-Path` entries are space-separated URLs. GraalVM
+   * 25.5+ silently ignores entries that aren't valid URIs, like plain Windows
+   * paths (`D:\foo\bar.jar`), so if `useUris` is true, we write file URIs
+   * (`file:///D:/foo/bar.jar`). These have special characters (spaces in
+   * particular) percent-encoded, and end with `/` for existing directories.
+   *
+   * Older GraalVM versions want plain paths instead (`useUris` false), see
+   * `manifestClassPathUsesUris`.
+   */
+  def classPathManifestValue(classPath: Seq[os.Path], useUris: Boolean): String =
+    classPath
+      .map { p =>
+        if useUris then absNioPath(p).toUri.toASCIIString
+        else absPath(p)
+      }
+      .mkString(" ")
+
+  /**
+   * Writes at `dest` an otherwise empty JAR whose manifest references
+   * `classPath` via its `Class-Path` attribute (see `classPathManifestValue`).
+   * Passing this JAR as class path to `native-image` allows to stay under the
+   * command line length limit on Windows.
+   */
+  def writeClassPathJar(classPath: Seq[os.Path], dest: os.Path, useUris: Boolean): os.Path = {
+    import java.util.jar.*
+    val manifest   = new Manifest
+    val attributes = manifest.getMainAttributes
+    attributes.put(Attributes.Name.MANIFEST_VERSION, "1.0")
+    attributes.put(Attributes.Name.CLASS_PATH, classPathManifestValue(classPath, useUris))
+    val destNio = absNioPath(dest)
+    java.nio.file.Files.createDirectories(destNio.getParent)
+    val jos = new JarOutputStream(java.nio.file.Files.newOutputStream(destNio), manifest)
+    jos.close()
+    dest
+  }
+
   def generateNativeImage(
     graalVmHome:           os.Path,
     jvmId:                 String,
@@ -427,6 +529,7 @@ object NativeImage extends NativeImageCompat {
     useJpms:               Option[Boolean],
     workspace:             os.Path,
     withFilesystemChecker: Boolean,
+    manifestUseUris:       Option[Boolean] = None,
   ): (Seq[String], Option[os.Path], Map[String, String]) = {
 
     val ext         = if Properties.isWin then ".cmd" else ""
@@ -434,15 +537,16 @@ object NativeImage extends NativeImageCompat {
 
     val finalCp =
       if createManifest then {
-        import java.util.jar.*
-        val manifest   = new Manifest
-        val attributes = manifest.getMainAttributes
-        attributes.put(Attributes.Name.MANIFEST_VERSION, "1.0")
-        attributes.put(Attributes.Name.CLASS_PATH, classPath.map(absPath).mkString(" "))
-        val jarFile = File.createTempFile("classpathJar", ".jar")
-        val jos     = new JarOutputStream(new java.io.FileOutputStream(jarFile), manifest)
-        jos.close()
-        jarFile.getAbsolutePath
+        // Kept in workingDir rather than in a temporary file, so that it's not leaked, and
+        // still exists when the script generated by nativeImageScript is run later on
+        val useUris = manifestUseUris.getOrElse(manifestClassPathUsesUris(graalVmHome))
+        val f       = () => absPath(writeClassPathJar(classPath, workingDir / "classpath.jar", useUris))
+        if withFilesystemChecker then f()
+        else
+          BuildCtx.withFilesystemCheckerDisabled {
+            System.err.println("generateNativeImage: skipping Mill file system checker")
+            f()
+          }
       } else
         classPath.map(absPath).mkString(File.pathSeparator)
 

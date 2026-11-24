@@ -34,6 +34,27 @@ object NativeImageTests extends ZIOSpecDefault {
       override def nativeImageName:         T[String]       = "test-app"
     }
 
+    /**
+     * Passes the class path via a manifest JAR, like on Windows by default, so
+     * that this is also tested on Linux / macOS.
+     *
+     * The class path entry is in a directory whose name contains `%41`. If we
+     * don't write class path entries as URIs (with `%` encoded), GraalVM >=
+     * 25.5 reads it as `A`, and doesn't find the entry, like plain Windows
+     * paths aren't found.
+     */
+    object appManifest      extends Cross[AppManifestModule](graalVmJvmIds)
+    trait AppManifestModule extends AppModule {
+      override def nativeImageUseManifest: T[Boolean]      = true
+      override def nativeImageClassPath:   T[Seq[PathRef]] = Task {
+        testAppClassPath.map { f =>
+          val dest = Task.dest / "dir%41" / f.last
+          os.copy.over(f, dest, createFolders = true)
+          PathRef(dest)
+        }
+      }
+    }
+
     lazy val millDiscover = Discover[this.type]
   }
 
@@ -69,6 +90,16 @@ object NativeImageTests extends ZIOSpecDefault {
       }
     }
 
+  def nativeImageManifestTest(jvmId: String) =
+    test("nativeImage with manifest JAR") {
+      ZIO.attemptBlocking {
+        withTester { eval =>
+          val res = eval(TestBuild.appManifest(jvmId).nativeImage).fold(f => sys.error(f.toString), identity)
+          checkOutput(runImage(res.value.path), jvmId)
+        }
+      }
+    }
+
   def nativeImageScriptTest(jvmId: String) =
     test("nativeImageScript") {
       ZIO.attemptBlocking {
@@ -87,6 +118,7 @@ object NativeImageTests extends ZIOSpecDefault {
     graalVmJvmIds.map { jvmId =>
       suite(jvmId)(
         nativeImageTest(jvmId),
+        nativeImageManifestTest(jvmId),
         nativeImageScriptTest(jvmId),
       )
     }*

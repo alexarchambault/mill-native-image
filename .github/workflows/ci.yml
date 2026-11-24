@@ -15,7 +15,7 @@ jobs:
       with:
         fetch-depth: 0
         submodules: true
-    - uses: coursier/cache-action@v8
+    - uses: coursier/cache-action@v9
     - uses: coursier/setup-action@v3
       with:
         jvm: 11
@@ -27,23 +27,38 @@ jobs:
   # Builds native images with the GraalVM versions corresponding to Java LTS versions
   # (see NativeImageTests.graalVmJvmIds)
   test-plugin:
-    runs-on: ubuntu-latest
+    runs-on: ${{ matrix.os }}
     strategy:
       fail-fast: false
       matrix:
+        os: ["ubuntu-latest", "windows-latest"]
         mill: ["1", "2"]
-    name: test-plugin (Mill ${{ matrix.mill }})
+    name: test-plugin (${{ matrix.os }}, Mill ${{ matrix.mill }})
     steps:
     - uses: actions/checkout@v7
       with:
         fetch-depth: 0
         submodules: true
-    - uses: coursier/cache-action@v8
+    - uses: coursier/cache-action@v9
     - uses: coursier/setup-action@v3
       with:
         jvm: 11
     - name: Test
+      if: runner.os != 'Windows'
       run: ./mill 'plugin[${{ matrix.mill }}].test'
+    # native-image needs MSVC on Windows, which the plugin finds via vcvarsall
+    # (Visual Studio is installed on GitHub's Windows runners)
+    - name: Test (Windows)
+      if: runner.os == 'Windows'
+      shell: cmd
+      run: .\mill.bat "plugin[${{ matrix.mill }}].test"
+      env:
+        # Keep the paths of the GraalVM files short: with the default archive cache location,
+        # some GraalVM header paths go beyond 260 characters, and MSVC fails to include them
+        COURSIER_ARCHIVE_CACHE: C:\cs-arc
+        # Prevents vcvarsall from leaving a telemetry process running in the test directories,
+        # which prevents their deletion
+        VSCMD_SKIP_SENDTELEMETRY: "1"
 
   test-example:
     runs-on: ubuntu-latest
@@ -52,7 +67,7 @@ jobs:
         with:
           fetch-depth: 0
           submodules: true
-      - uses: coursier/cache-action@v8
+      - uses: coursier/cache-action@v9
       - uses: coursier/setup-action@v3
         with:
           jvm: 11
@@ -98,7 +113,7 @@ jobs:
       with:
         fetch-depth: 0
         submodules: true
-    - uses: coursier/cache-action@v8
+    - uses: coursier/cache-action@v9
     - uses: coursier/setup-action@v3
       with:
         jvm: 21
